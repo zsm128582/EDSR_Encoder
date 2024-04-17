@@ -4,12 +4,21 @@ train_dataset:
     args:
       root_path: ./data/task3
       repeat: 1
-      input_size : 224
-  wrapper:
+      
+  wrapper: 
     name: random-n-dataloader
     args:
       point_num: 128
-      augment: true
+      augment: True
+      istrain: True
+      augmentConfigs : 
+        input_size : 224
+        color_jitter : None
+        auto_augment : rand-m9-mstd0.5-inc1
+        # RE 的意思是 random eraser
+        reprob : 0.25
+        remode : pixel
+        recount : 1
   batch_size: 1
 
 val_dataset:
@@ -21,7 +30,17 @@ val_dataset:
     name: random-n-dataloader
     args:
       point_num: 128
-      augment: true
+      augment: False
+      istrain: True
+      augmentConfigs : 
+        input_size : 224
+        color_jitter : None
+        auto_augment : rand-m9-mstd0.5-inc1
+        # RE 的意思是 random eraser
+        reprob : 0.25
+        remode : pixel
+        recount : 1
+      
   batch_size: 1
 eval_type: div2k-2
 eval_bsize: 500
