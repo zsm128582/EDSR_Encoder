@@ -1,4 +1,8 @@
 from .models import register, make
-from . import edsr, rdn
+from . import edsr , rdn
+from . import sronet , galerkin
+from . import myEncoder , positionalEmbedding
 
-from . import sronet,galerkin
+
+
+
