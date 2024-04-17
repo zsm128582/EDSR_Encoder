@@ -1,0 +1,3 @@
+train dataset: size=20580
+val dataset: size=20580
+model: #params=1.3M

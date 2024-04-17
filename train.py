@@ -24,8 +24,8 @@ def make_data_loader(spec, tag=''):
     dataset = datasets.make(spec['wrapper'], args={'dataset': dataset})
 
     log('{} dataset: size={}'.format(tag, len(dataset)))
-    for k, v in dataset[0].items():
-        log('  {}: shape={}'.format(k, tuple(v.shape)))
+    # for k, v in dataset[0].items():
+    #     log('  {}: shape={}'.format(k, tuple(v.shape)))
 
     loader = DataLoader(dataset, batch_size=spec['batch_size'],
         shuffle=(tag == 'train'), num_workers=8, pin_memory=True,persistent_workers=True)
@@ -75,15 +75,15 @@ def train(train_loader, model, optimizer, \
     model.train()
     loss_fn = nn.L1Loss()
     train_loss = utils.Averager()
-    metric_fn = utils.calc_psnr
+    # metric_fn = utils.calc_psnr
 
     data_norm = config['data_norm']
     t = data_norm['inp']
-    inp_sub = torch.FloatTensor(t['sub']).view(1, -1, 1, 1).cuda()
-    inp_div = torch.FloatTensor(t['div']).view(1, -1, 1, 1).cuda()
+    # inp_sub = torch.FloatTensor(t['sub']).view(1, -1, 1, 1).cuda()
+    # inp_div = torch.FloatTensor(t['div']).view(1, -1, 1, 1).cuda()
     t = data_norm['gt']
-    gt_sub = torch.FloatTensor(t['sub']).view(1, 1, -1).cuda()
-    gt_div = torch.FloatTensor(t['div']).view(1, 1, -1).cuda()
+    # gt_sub = torch.FloatTensor(t['sub']).view(1, 1, -1).cuda()
+    # gt_div = torch.FloatTensor(t['div']).view(1, 1, -1).cuda()
     
     #num_dataset = 800 # DIV2K
     #iter_per_epoch = int(num_dataset / config.get('train_dataset')['batch_size'] \
@@ -91,14 +91,18 @@ def train(train_loader, model, optimizer, \
     iteration = 0
     pbar = tqdm(train_loader, leave=False, desc='train')
     for batch in pbar:
+        # batch["img"] = batch["img"].cuda(non_blocking=True)
+        # batch["coord"] = batch["coord"].cuda(non_blocking = True)
+        # batch[]
+        # batch["gt"] = batch["gt"].cuda(non_blocking=True)
         for k, v in batch.items():
             batch[k] = v.cuda(non_blocking=True)
 
-        inp = (batch['inp'] - inp_sub) / inp_div
-        pred = model(inp, batch['coord'], batch['cell'])
+        # inp = (batch['inp'] - inp_sub) / inp_div
+        pred = model(batch["img"], batch['coord'])
 
-        gt = (batch['gt'] - gt_sub) / gt_div
-        loss = loss_fn(pred, gt)
+        # gt = (batch['gt'] - gt_sub) / gt_div
+        loss = loss_fn(pred, batch["gt"])
         #psnr = metric_fn(pred, gt)
         
         # tensorboard

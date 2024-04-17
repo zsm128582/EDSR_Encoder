@@ -1,0 +1,44 @@
+train_dataset:
+  dataset:
+    name: image-folder
+    args:
+      root_path: ./data/task3
+      repeat: 1
+  wrapper:
+    name: random-n-dataloader
+    args:
+      point_num: 128
+      augment: true
+  batch_size: 1
+val_dataset:
+  dataset:
+    name: image-folder
+    args:
+      root_path: ./data/task3
+  wrapper:
+    name: random-n-dataloader
+    args:
+      point_num: 128
+      augment: true
+  batch_size: 1
+eval_type: div2k-2
+eval_bsize: 500
+model:
+  name: random_N_encoder
+  args:
+    encoder_spec:
+      name: edsr-baseline
+      args:
+        no_upsampling: true
+    width: 256
+    blocks: 16
+optimizer:
+  name: adam
+  args:
+    lr: 4.0e-05
+epoch_max: 1050
+warmup_step_lr:
+  multiplier: 10
+  total_epoch: 50
+epoch_val: 50
+epoch_save: 250

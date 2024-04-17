@@ -232,3 +232,26 @@ def calc_psnr(sr, hr, dataset=None, scale=1, rgb_range=1):
         valid = diff
     mse = valid.pow(2).mean()
     return -10 * torch.log10(mse)
+
+
+#  output : [ n ,2 ]
+def generate_random_points(height, width, n):
+    points = torch.zeros((n , 2) , dtype=torch.int16)
+
+    for _ in range(n):
+        x = random.randint(0, width - 1)
+        y = random.randint(0, height - 1)
+        points[_][0] = x
+        points[_][1] = y
+        # points.append((x, y))
+    return points
+
+#input : coords :  tensor[n , 2]
+#  image : tensor [3, h , w ]
+#  output  : points :  tensor [ 3, n ] ?   / [ n ,3 ] 
+def select_points_from_image(image, coordinates):
+    selected_points = torch.zeros((coordinates.shape[0] , 3))
+    image = image.permute(1,2,0)
+    for index ,  coord in enumerate(coordinates):
+        selected_points[index] = image[coord[0] , coord[1]] # Assuming image is a 2D list or array
+    return selected_points
