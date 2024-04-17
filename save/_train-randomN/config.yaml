@@ -9,6 +9,14 @@ train_dataset:
     args:
       point_num: 128
       augment: true
+      istrain: true
+      augmentConfigs:
+        input_size: 224
+        color_jitter: None
+        auto_augment: rand-m9-mstd0.5-inc1
+        reprob: 0.25
+        remode: pixel
+        recount: 1
   batch_size: 1
 val_dataset:
   dataset:
@@ -19,7 +27,15 @@ val_dataset:
     name: random-n-dataloader
     args:
       point_num: 128
-      augment: true
+      augment: false
+      istrain: true
+      augmentConfigs:
+        input_size: 224
+        color_jitter: None
+        auto_augment: rand-m9-mstd0.5-inc1
+        reprob: 0.25
+        remode: pixel
+        recount: 1
   batch_size: 1
 eval_type: div2k-2
 eval_bsize: 500
