@@ -29,6 +29,8 @@ class myEncoder(nn.Module):
             "integral",
             "local",
         ]
+
+        
         attention_type = _attention_types[1]
         _norm_types = ["instance", "layer"]
         norm_type = _norm_types[1]

@@ -2,13 +2,13 @@ train_dataset:
   dataset:
     name: image-folder
     args:
-      root_path: ./data/task3
+      root_path: ./data/test
       repeat: 1
       
   wrapper: 
     name: random-n-dataloader
     args:
-      point_num: 128
+      point_num: 8000
       augment: True
       istrain: True
       augmentConfigs : 
@@ -16,10 +16,10 @@ train_dataset:
         color_jitter : None
         auto_augment : rand-m9-mstd0.5-inc1
         # RE 的意思是 random eraser
-        reprob : 0.25
+        reprob : 0
         remode : pixel
         recount : 1
-  batch_size: 1
+  batch_size: 32
 
 val_dataset:
   dataset:
@@ -29,19 +29,19 @@ val_dataset:
   wrapper:
     name: random-n-dataloader
     args:
-      point_num: 128
-      augment: False
+      point_num: 8000
+      augment: True
       istrain: True
       augmentConfigs : 
         input_size : 224
         color_jitter : None
         auto_augment : rand-m9-mstd0.5-inc1
         # RE 的意思是 random eraser
-        reprob : 0.25
+        reprob : 0
         remode : pixel
         recount : 1
       
-  batch_size: 1
+  batch_size: 32
 eval_type: div2k-2
 eval_bsize: 500
 
@@ -65,7 +65,7 @@ optimizer:
   args:
     lr: 4.e-5
     #weight_decay: 1.e-5
-epoch_max: 1050
+epoch_max: 600
 warmup_step_lr:
   multiplier: 10
   total_epoch: 50
@@ -73,6 +73,6 @@ warmup_step_lr:
 #  milestones: [200, 400, 600, 800, 1000]
 #  gamma: 0.5
 
-epoch_val: 50
+epoch_val: 600
 epoch_save: 250
 
