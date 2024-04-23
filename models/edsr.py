@@ -9,6 +9,12 @@ import torch.nn.functional as F
 
 from models import register
 
+from galerkin_transformer.model import SimpleAttention
+from models.positionalEmbedding import PositionEmbeddingSine
+from timm.models.vision_transformer import PatchEmbed
+
+from models.pos_embed import get_2d_sincos_pos_embed
+
 
 def default_conv(in_channels, out_channels, kernel_size, bias=True):
     return nn.Conv2d(
@@ -27,12 +33,15 @@ class MeanShift(nn.Conv2d):
         for p in self.parameters():
             p.requires_grad = False
 
+
+
 class ResBlock(nn.Module):
     def __init__(
         self, conv, n_feats, kernel_size,
-        bias=True, bn=False, act=nn.ReLU(True), res_scale=1):
+        bias=True, bn=False, act=nn.ReLU(True), res_scale=1 , image_size = 224 , patch_size = 16 , img_chans = 64 , embed_dim = 1024):
 
         super(ResBlock, self).__init__()
+
         m = []
         for i in range(2):
             m.append(conv(n_feats, n_feats, kernel_size, bias=bias))
@@ -40,15 +49,88 @@ class ResBlock(nn.Module):
                 m.append(nn.BatchNorm2d(n_feats))
             if i == 0:
                 m.append(act)
-
+        _attention_types = [
+            "linear",
+            "galerkin",
+            "global",
+            "causal",
+            "fourier",
+            "softmax",
+            "integral",
+            "local",
+        ] 
+        self.img_chans = img_chans
+        attention_type = _attention_types[1]
+        _norm_types = ["instance", "layer"]
+        norm_type = _norm_types[1]
+        attn_norm = True
+        n_head = 8
+        dropout = 0.1
+        dim_feedforward = embed_dim * 2
+        pre_norm = True        
+        self.sa1 = SimpleAttention(
+            n_head=n_head,
+            d_model=embed_dim,
+            attention_type=_attention_types[1],
+            pos_dim=-1,
+            norm=attn_norm,
+            norm_type=norm_type,
+            dropout=0.0,
+        )
+        # self.posEmbedding = PositionEmbeddingSine(
+        #     num_pos_feats=hidden_dim // 2, normalize=True
+        # )
         self.body = nn.Sequential(*m)
         self.res_scale = res_scale
+        self.patch_embed = PatchEmbed(image_size, patch_size, img_chans, embed_dim)
+        num_patches = self.patch_embed.num_patches
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim), requires_grad=False)  # fixed sin-cos embedding
+        pos = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
+        self.pos_embed.data.copy_(torch.from_numpy(pos).float().unsqueeze(0))
+
+        self.rebuild = nn.Linear(embed_dim, patch_size** 2 * img_chans, bias=True) # decoder to patch
 
     def forward(self, x):
         res = self.body(x).mul(self.res_scale)
-        res += x
 
+        # 1. image patchfy (2d convolution)
+        res = self.patch_embed(res)
+
+
+        #  res.shape  [ b , patch_num , emdding dimension]  [16 , 196  ,1024] 
+        # 2. pos embedding 
+        res = res + self.pos_embed[:,1,:]
+
+        # 3. galerkin 
+
+        res , _ = self.sa1(query = res , key = res , value = res)
+
+        # 4. rebuild or reshape ? [ b , 196 , 16384]
+
+        res = self.rebuild(res)
+
+        # [ b , 196 , 16384] ->  [b , 64 ,  224 , 224 ]
+        res = self.unpatchify(res , img_chans= self.img_chans)
+
+        # TODO : 尝试用patch 吧
+        # pos = self.posEmbedding(res, None)
+        # res , _ = self.sa1(query = res , key = res , value = res , pos = pos)
+        res += x
         return res
+
+    def unpatchify(self, x , img_chans = 3):
+        """
+        x: (N, L, patch_size**2 *3)
+        imgs: (N, 3, H, W)
+        """
+        p = self.patch_embed.patch_size[0]
+        h = w = int(x.shape[1]**.5)
+        assert h * w == x.shape[1]
+        
+        x = x.reshape(shape=(x.shape[0], h, w, p, p, img_chans))
+        x = torch.einsum('nhwpqc->nchpwq', x)
+        imgs = x.reshape(shape=(x.shape[0], img_chans, h * p, h * p))
+        return imgs
 
 class Upsampler(nn.Sequential):
     def __init__(self, conv, scale, n_feats, bn=False, act=False, bias=True):

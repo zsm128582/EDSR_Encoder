@@ -2,22 +2,22 @@ train_dataset:
   dataset:
     name: image-folder
     args:
-      root_path: ./data/task3
+      root_path: ./data/test
       repeat: 1
   wrapper:
     name: random-n-dataloader
     args:
-      point_num: 128
+      point_num: 8000
       augment: true
       istrain: true
       augmentConfigs:
         input_size: 224
         color_jitter: None
         auto_augment: rand-m9-mstd0.5-inc1
-        reprob: 0.25
+        reprob: 0
         remode: pixel
         recount: 1
-  batch_size: 1
+  batch_size: 32
 val_dataset:
   dataset:
     name: image-folder
@@ -26,17 +26,17 @@ val_dataset:
   wrapper:
     name: random-n-dataloader
     args:
-      point_num: 128
-      augment: false
+      point_num: 8000
+      augment: true
       istrain: true
       augmentConfigs:
         input_size: 224
         color_jitter: None
         auto_augment: rand-m9-mstd0.5-inc1
-        reprob: 0.25
+        reprob: 0
         remode: pixel
         recount: 1
-  batch_size: 1
+  batch_size: 32
 eval_type: div2k-2
 eval_bsize: 500
 model:
@@ -52,9 +52,9 @@ optimizer:
   name: adam
   args:
     lr: 4.0e-05
-epoch_max: 1050
+epoch_max: 600
 warmup_step_lr:
   multiplier: 10
   total_epoch: 50
-epoch_val: 50
+epoch_val: 600
 epoch_save: 250
