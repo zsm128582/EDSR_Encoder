@@ -33,7 +33,26 @@ class MeanShift(nn.Conv2d):
         for p in self.parameters():
             p.requires_grad = False
 
+# ```
 
+# {
+#     "live-restore": true,
+#     "registry-mirrors": [
+#         "https://6kx4zyno.mirror.aliyuncs.com",    
+#         "https://registry.docker-cn.com",
+#         "http://hub-mirror.c.163.com",
+#         "https://docker.mirrors.ustc.edu.cn"
+#     ],
+#     "runtimes": {
+#         "nvidia": {
+#             "args": [],
+#             "path": "nvidia-container-runtime"
+#         }
+#     },
+#     "dns": ["8.8.8.8", "114.114.114.114"]
+# }
+
+# ````
 
 class ResBlock(nn.Module):
     def __init__(
@@ -118,6 +137,8 @@ class ResBlock(nn.Module):
         res += x
         return res
 
+    # 1. 在最后resblock加gk
+    # 2. 减少维度（ 
     def unpatchify(self, x , img_chans = 3):
         """
         x: (N, L, patch_size**2 *3)
@@ -126,9 +147,10 @@ class ResBlock(nn.Module):
         p = self.patch_embed.patch_size[0]
         h = w = int(x.shape[1]**.5)
         assert h * w == x.shape[1]
-        
+        # 14 ,14 , 16 ,16  , 64    
         x = x.reshape(shape=(x.shape[0], h, w, p, p, img_chans))
         x = torch.einsum('nhwpqc->nchpwq', x)
+        # 64 , 14 * 16  , 14 *16  , 
         imgs = x.reshape(shape=(x.shape[0], img_chans, h * p, h * p))
         return imgs
 

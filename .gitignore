@@ -1,0 +1,6 @@
+./sandbox
+./save
+*.img
+*.sif
+*.simg
+*.pyc

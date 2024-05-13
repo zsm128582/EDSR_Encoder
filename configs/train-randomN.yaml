@@ -20,6 +20,7 @@ train_dataset:
         remode : pixel
         recount : 1
   batch_size: 32
+  num_workers: 16
 
 val_dataset:
   dataset:
@@ -40,7 +41,6 @@ val_dataset:
         reprob : 0
         remode : pixel
         recount : 1
-      
   batch_size: 32
 eval_type: div2k-2
 eval_bsize: 500

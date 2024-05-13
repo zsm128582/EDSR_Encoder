@@ -15,6 +15,8 @@ import utils
 from test import eval_psnr
 from scheduler import GradualWarmupScheduler
 
+from torch.profiler import profile, record_function, ProfilerActivity, tensorboard_trace_handler
+
 
 def make_data_loader(spec, tag=''):
     if spec is None:
@@ -69,9 +71,16 @@ def prepare_training():
     log('model: #params={}'.format(utils.compute_num_params(model, text=True)))
     return model, optimizer, epoch_start, lr_scheduler
 
+# def trace_handler(p):
+#     output = p.key_averages().table(sort_by="self_cuda_time_total", row_limit=10)
+#     print(output)
+#     p.export_chrome_trace("/tmp/trace_" + str(p.step_num) + ".json")
 
 def train(train_loader, model, optimizer, \
          epoch):
+    # print(model)
+    # exit()
+    
     model.train()
     loss_fn = nn.L1Loss()
     train_loss = utils.Averager()
@@ -89,17 +98,34 @@ def train(train_loader, model, optimizer, \
     #                    * config.get('train_dataset')['dataset']['args']['repeat'])
     iteration = 0
     pbar = tqdm(train_loader, leave=False, desc='train')
+
+
     for batch in pbar:
         # batch["img"] = batch["img"].cuda(non_blocking=True)
         # batch["coord"] = batch["coord"].cuda(non_blocking = True)
         # batch[]
         # batch["gt"] = batch["gt"].cuda(non_blocking=True)
-        for k, v in batch.items():
+        
             batch[k] = v.cuda(non_blocking=True)
+        
+        with torch.profiler.profile(
+        activities=[torch.profiler.ProfilerActivity.CPU , torch.profiler.ProfilerActivity.CUDA],
+        # schedule=torch.profiler.schedule(
+        #     wait=1,
+        #     warmup=2,
+        #     active=6,
+        #     repeat=1),
+        on_trace_ready=torch.profiler.tensorboard_trace_handler("./result"),
+        with_stack=True,
+        record_shapes=False,
+        profile_memory=True
+        ) as profiler:
+            # inp = (batch['inp'] - inp_sub) / inp_div
+            pred = model(batch["img"], batch['coord'])
 
-        # inp = (batch['inp'] - inp_sub) / inp_div
-        pred = model(batch["img"], batch['coord'])
-
+            profiler.step()
+            exit()
+        
         # gt = (batch['gt'] - gt_sub) / gt_div
         loss = loss_fn(pred, batch["gt"])
         #psnr = metric_fn(pred, gt)
@@ -114,10 +140,12 @@ def train(train_loader, model, optimizer, \
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
-        pred = None; loss = None
-        pbar.set_description('train {:.4f}'.format(train_loss.item()))
         
+        pred = None; loss = None
+        pbar.set_description('train {:.4f}'.format(train_loss.item()))  
+        # profiler.step()
+        # exit()
+
     return train_loss.item()
 
 
