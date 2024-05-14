@@ -63,7 +63,7 @@ class myEncoder(nn.Module):
             norm_type=norm_type,
             dropout=0.0,
         )
-
+        
         self.posEmbedding = PositionEmbeddingSine(
             num_pos_feats=hidden_dim // 2, normalize=True
         )

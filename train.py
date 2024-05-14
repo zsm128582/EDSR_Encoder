@@ -105,26 +105,26 @@ def train(train_loader, model, optimizer, \
         # batch["coord"] = batch["coord"].cuda(non_blocking = True)
         # batch[]
         # batch["gt"] = batch["gt"].cuda(non_blocking=True)
-        
+        for k,v in batch.items():
             batch[k] = v.cuda(non_blocking=True)
         
-        with torch.profiler.profile(
-        activities=[torch.profiler.ProfilerActivity.CPU , torch.profiler.ProfilerActivity.CUDA],
-        # schedule=torch.profiler.schedule(
-        #     wait=1,
-        #     warmup=2,
-        #     active=6,
-        #     repeat=1),
-        on_trace_ready=torch.profiler.tensorboard_trace_handler("./result"),
-        with_stack=True,
-        record_shapes=False,
-        profile_memory=True
-        ) as profiler:
-            # inp = (batch['inp'] - inp_sub) / inp_div
-            pred = model(batch["img"], batch['coord'])
+        # with torch.profiler.profile(
+        # activities=[torch.profiler.ProfilerActivity.CPU , torch.profiler.ProfilerActivity.CUDA],
+        # # schedule=torch.profiler.schedule(
+        # #     wait=1,
+        # #     warmup=2,
+        # #     active=6,
+        # #     repeat=1),
+        # on_trace_ready=torch.profiler.tensorboard_trace_handler("./result"),
+        # with_stack=True,
+        # record_shapes=False,
+        # profile_memory=True
+        # ) as profiler:
+        # inp = (batch['inp'] - inp_sub) / inp_div
+        pred = model(batch["img"], batch['coord'])
 
-            profiler.step()
-            exit()
+        # profiler.step()
+        # exit()
         
         # gt = (batch['gt'] - gt_sub) / gt_div
         loss = loss_fn(pred, batch["gt"])
