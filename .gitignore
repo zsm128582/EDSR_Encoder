@@ -1,5 +1,5 @@
-./sandbox
-./save
+sandbox/
+save/
 *.img
 *.sif
 *.simg
