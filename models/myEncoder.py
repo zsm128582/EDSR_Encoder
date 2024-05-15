@@ -87,9 +87,19 @@ class myEncoder(nn.Module):
     def forward(self, img, coords):
         self.coords = coords
         #  1. 用edsr提取图像特征
+        # timer_start = torch.cuda.Event(enable_timing=True)
+        # timer_end = torch.cuda.Event(enable_timing=True)
+        # timer_start.record()
+
         self.gen_feat(img)
 
+        # timer_end.record()
+        # torch.cuda.synchronize()
+        # getFeat_time = timer_start.elapsed_time(timer_end)
+
         # 2. sampling        or    mask (和 mae 有什么区别？)
+
+        # timer_start.record()
 
         samples = self.get_samples(self.feat, self.coords)
 
@@ -100,12 +110,21 @@ class myEncoder(nn.Module):
 
         # 然后对pos进行sampling
         samples_pos = self.get_samples(pos, self.coords)
+
+        # timer_end.record()
+        # torch.cuda.synchronize()
+        # sampleTime = timer_start.elapsed_time(timer_end)
+
+
+
         # 3. garkerlin + pos embedding
+
 
         # query=samples + samples_pos
         # key=samples + samples_pos
         # value=samples 
         #  q , k , v
+        # timer_start.record()
 
         output , _ = self.sa1(
             query=samples + samples_pos, key=samples + samples_pos, value=samples
@@ -124,6 +143,13 @@ class myEncoder(nn.Module):
         samples = self.ffn(samples)
         
         pred = self.mlp(samples)
+
+        # timer_end.record()
+        # torch.cuda.synchronize()
+        # attention_time = timer_start.elapsed_time(timer_end)
+
+        # print(f" generate feature time : {getFeat_time:.4f}ms,  get sample time {sampleTime:.4f}ms, attention Time: {attention_time:.4f}ms")
+
         return pred
         #  add residual layer
         # 4. decoder
@@ -134,25 +160,46 @@ class myEncoder(nn.Module):
 
         # or ...
 
-    # input : img: tensor[ b , c , w , h ]   coords : [b , n ,2 ]
+    # input : img: tensor[ b , c , w , h ]   coords : [b , n , 2 ]
     # output : tensor[ b , c , len(coords)]
     def get_samples(self ,img, coords):
+        # getsample_start = torch.cuda.Event(enable_timing=True)
+        # getsample_end = torch.cuda.Event(enable_timing=True)
+        # getsample_start.record()
+
         batch_size , chennel , _ , _ = img.shape
         point_num = coords.shape[1]
         select_points = torch.empty((batch_size , point_num, chennel),device=img.device)
         for b in range(batch_size):
             select_points[b]= self.select_points_from_image(img[b],coords[b])
+
+        # getsample_end.record()
+        # torch.cuda.synchronize()
+        # sampleTime = getsample_start.elapsed_time(getsample_end)
+        # print(f"sample Time: {sampleTime:.4f}ms")
+
         return select_points
     
 
-        #input : coords :  tensor[n , 2]
-    #  image : tensor [3, h , w ]
-    #  output  : points :  tensor [ 3, n ] ?   / [ n ,3 ] 
+    #input : coords :  tensor[n , 2]
+    # image : tensor [3, h , w ]
     def select_points_from_image(self,image, coordinates):
-        selected_points = torch.zeros((coordinates.shape[0] , image.shape[0]),device = image.device)
-        image = image.permute(1,2,0)
-        for index ,  coord in enumerate(coordinates):
-            selected_points[index] = image[coord[0] , coord[1]] # Assuming image is a 2D list or array
+        image =  image.permute(1,2,0)
+        coordinates = coordinates.long()
+        # max_x = torch.max(coordinates[:, 0])
+        # max_y = torch.max(coordinates[:, 1])
+    
+        # print(f"Max x coordinate: {max_x}, Max y coordinate: {max_y}")
+        # assert torch.all((coordinates[:, 0] >= 0) & (coordinates[:, 0] < image.shape[0])), "x_coords out of bounds"
+        # assert torch.all((coordinates[:, 1] >= 0) & (coordinates[:, 1] < image.shape[1])), "y_coords out of bounds"
+        x_coords = coordinates[:, 0]
+        y_coords = coordinates[:, 1]
+        selected_points = image[x_coords, y_coords]
+
+        # selected_points = torch.zeros((coordinates.shape[0] , image.shape[0]),device = image.device)
+        # image = image.permute(1,2,0)
+        # for index ,  coord in enumerate(coordinates):
+        #     selected_points[index] = image[coord[0] , coord[1]] # Assuming image is a 2D list or array
         return selected_points
     
 

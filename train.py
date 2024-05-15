@@ -13,8 +13,9 @@ import datasets
 import models
 import utils
 from test import eval_psnr
+from test import eval_randomN
 from scheduler import GradualWarmupScheduler
-
+import time
 from torch.profiler import profile, record_function, ProfilerActivity, tensorboard_trace_handler
 
 
@@ -86,11 +87,8 @@ def train(train_loader, model, optimizer, \
     train_loss = utils.Averager()
     # metric_fn = utils.calc_psnr
 
-    data_norm = config['data_norm']
-    t = data_norm['inp']
     # inp_sub = torch.FloatTensor(t['sub']).view(1, -1, 1, 1).cuda()
     # inp_div = torch.FloatTensor(t['div']).view(1, -1, 1, 1).cuda()
-    t = data_norm['gt']
     # gt_sub = torch.FloatTensor(t['sub']).view(1, 1, -1).cuda()
     # gt_div = torch.FloatTensor(t['div']).view(1, 1, -1).cuda()
     #num_dataset = 800 # DIV2K
@@ -105,9 +103,15 @@ def train(train_loader, model, optimizer, \
         # batch["coord"] = batch["coord"].cuda(non_blocking = True)
         # batch[]
         # batch["gt"] = batch["gt"].cuda(non_blocking=True)
+        # data_load_start = time.time()
+
+        
+
         for k,v in batch.items():
             batch[k] = v.cuda(non_blocking=True)
-        
+
+        # data_load_end = time.time()
+
         # with torch.profiler.profile(
         # activities=[torch.profiler.ProfilerActivity.CPU , torch.profiler.ProfilerActivity.CUDA],
         # # schedule=torch.profiler.schedule(
@@ -121,13 +125,21 @@ def train(train_loader, model, optimizer, \
         # profile_memory=True
         # ) as profiler:
         # inp = (batch['inp'] - inp_sub) / inp_div
+        # forward_start = torch.cuda.Event(enable_timing=True)
+        # forward_end = torch.cuda.Event(enable_timing=True)
+        # forward_start.record()
+
+
         pred = model(batch["img"], batch['coord'])
 
         # profiler.step()
         # exit()
-        
         # gt = (batch['gt'] - gt_sub) / gt_div
         loss = loss_fn(pred, batch["gt"])
+
+        # forward_end.record()
+        # torch.cuda.synchronize()
+        # forward_time = forward_start.elapsed_time(forward_end)
         #psnr = metric_fn(pred, gt)
         
         # tensorboard
@@ -136,10 +148,20 @@ def train(train_loader, model, optimizer, \
         iteration += 1
         
         train_loss.add(loss.item())
+        # backward_start = torch.cuda.Event(enable_timing=True)
+        # backward_end = torch.cuda.Event(enable_timing=True)
+        # backward_start.record()
+
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+        # backward_end.record()
+        # torch.cuda.synchronize()
+        # backward_time = backward_start.elapsed_time(backward_end)
+
+        # print(f"For this batch : Data Load Time: {data_load_end - data_load_start:.4f}s, Forward Time: {forward_time:.4f}ms, Backward Time: {backward_time:.4f}ms")
         
         pred = None; loss = None
         pbar.set_description('train {:.4f}'.format(train_loss.item()))  
@@ -191,6 +213,7 @@ def main(config_, save_path):
         log_info.append('train: loss={:.4f}'.format(train_loss))
         writer.add_scalars('loss', {'train': train_loss}, epoch)
 
+        # 这里在干嘛？为什么要新建（？）一个模型
         if n_gpus > 1:
             model_ = model.module
         else:
@@ -216,10 +239,7 @@ def main(config_, save_path):
                 model_ = model.module
             else:
                 model_ = model
-            val_res = eval_psnr(val_loader, model_,
-                data_norm=config['data_norm'],
-                eval_type=config.get('eval_type'),
-                eval_bsize=config.get('eval_bsize'))
+            val_res = eval_randomN(val_loader,model)
 
             log_info.append('val: psnr={:.4f}'.format(val_res))
 #             writer.add_scalars('psnr', {'val': val_res}, epoch)

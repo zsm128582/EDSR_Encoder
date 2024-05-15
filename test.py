@@ -5,6 +5,7 @@ from functools import partial
 
 import yaml
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -26,7 +27,32 @@ def batched_predict(model, inp, coord, cell, bsize):
             preds.append(pred)
         pred = torch.cat(preds, dim=2)
     return pred
+def eval_randomN(loader , model , verbose = False , loss_Fn = nn.L1Loss()):
+    model.eval()
+    pbar = tqdm(loader, leave=False, desc='val') 
+    val_res = utils.Averager()   
+    for batch in pbar :
+        for k,v in batch.items():
+            batch[k] = v.cuda(non_blocking = True)
+        
+        with torch.no_grad():
+            pred = model(batch["img"] , batch["coord"])
 
+        with torch.no_grad():
+            res = loss_Fn(pred , batch['gt'])
+        
+        val_res.add(res.item(),batch["img"].shape[0])
+        
+        if verbose:
+            pbar.set_description('val {:.4f}'.format(val_res.item()))
+    return val_res.item()
+
+
+# def randomN_metric(pred , gt , lossFn):
+
+#     # 这里我要写两种metric ， 一种是只预测随机选取的点， 一种是重建全图的
+#     pass
+    
 
 def eval_psnr(loader, model, data_norm=None, eval_type=None, eval_bsize=None, scale_max=4,
               verbose=False,mcell=False):
@@ -80,7 +106,7 @@ def eval_psnr(loader, model, data_norm=None, eval_type=None, eval_bsize=None, sc
             pred = batched_predict(model, inp, coord, cell*c, eval_bsize)
 
         with torch.no_grad():
-            pred = pred * gt_div + gt_sub
+            pred = pred *    gt_div + gt_sub
             pred.clamp_(0, 1)
             res = metric_fn(pred, batch['gt'])
 
