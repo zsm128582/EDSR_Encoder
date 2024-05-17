@@ -10,6 +10,7 @@ from models import register
 from typing import Optional
 from galerkin_transformer.model import SimpleAttention
 from models.positionalEmbedding import PositionEmbeddingSine
+from models.selfAttention import SelfAttention
 # from positionalEmbedding import NestedTensor
 
 
@@ -40,10 +41,6 @@ class myEncoder(nn.Module):
         dropout = 0.1
         dim_feedforward = hidden_dim * 2
         pre_norm = True
-
-
-
-
         self.sa1 = SimpleAttention(
             n_head=n_head,
             d_model=hidden_dim,
@@ -79,6 +76,11 @@ class myEncoder(nn.Module):
                     normalize_before=pre_norm,
                 )
         self.mlp = MLP(input_dim= hidden_dim,hidden_dim= hidden_dim , output_dim= 3 , num_layers= 3)
+
+
+        self.decoder = myDecoder(embed_dim=hidden_dim)
+
+
     def gen_feat(self, img):
         self.img = img
         self.feat = self.encoder(img)
@@ -141,8 +143,17 @@ class myEncoder(nn.Module):
         samples = self.layerNorm(samples)
 
         samples = self.ffn(samples)
+
+        restoreImage = self.decoder(img.shape , self.coords , samples , pos)
         
-        pred = self.mlp(samples)
+
+
+        #然后这里写pos embedding
+        #然后相加
+
+        
+        #然后经过几层 transformer  ， mae用了8层？ 
+        #然后就经过一个mlp
 
         # timer_end.record()
         # torch.cuda.synchronize()
@@ -150,7 +161,7 @@ class myEncoder(nn.Module):
 
         # print(f" generate feature time : {getFeat_time:.4f}ms,  get sample time {sampleTime:.4f}ms, attention Time: {attention_time:.4f}ms")
 
-        return pred
+        return restoreImage
         #  add residual layer
         # 4. decoder
         
@@ -271,3 +282,72 @@ class MLP(nn.Module):
         for i, layer in enumerate(self.layers):
             x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
         return x
+
+
+class myDecoder(nn.Module):
+    def __init__ (self , attentionBlockNum = 8 , embed_dim = 64):
+        super().__init__()
+        self.decoder_blocks = nn.ModuleList([
+            SelfAttention(n_feats = embed_dim) for i in range(attentionBlockNum)
+        ])
+        self.decoder_norm = nn.LayerNorm(embed_dim)
+        self.decoder_pred = MLP(embed_dim , embed_dim*2 , 3 , 3 )
+    def forward(self , image_shape , coordinates , processed_points , pos):
+
+        restoreImage = self.restore_points_to_image(image_shape, coordinates , processed_points)
+        restoreImage  = restoreImage + pos
+        for block  in self.decoder_blocks:
+            restoreImage = block(restoreImage)
+            # 这里要写ffn ， norm？
+        restoreImage = restoreImage.permute(0,2,3,1)
+        restoreImage = self.decoder_norm(restoreImage)
+        restoreImage = self.decoder_pred(restoreImage)
+        restoreImage = restoreImage.permute(0 ,3 ,1 ,2 )
+        return restoreImage
+
+
+    # def unsuffledImage(self,image_shape , coordinates , processed_points):
+    #     _, H, W = image_shape
+    #     C = processed_points.shape[1]  # embed_dim
+    #     restored_image = torch.zeros((C, H, W), device=processed_points.device)
+    #     coordinates = coordinates.long()
+
+    #     x_coords = coordinates[:, 0]
+    #     y_coords = coordinates[:, 1]
+
+    #     restored_image[:, x_coords, y_coords] = processed_points.t()
+
+    #     return restored_image
+
+    def restore_points_to_image(self ,batch_image_shape, batch_coordinates, batch_processed_points):
+        """
+        将批处理的处理后的点放回它们原来的位置
+        
+        参数：
+        - batch_image_shape (tuple): 批处理图像的形状，格式为 (B, C, H, W)
+        - batch_coordinates (Tensor): 批处理坐标张量，形状为 [B, n, 2]
+        - batch_processed_points (Tensor): 批处理处理后的点，形状为 [B, n, embed_dim]
+        
+        返回：
+        - batch_restored_image (Tensor): 恢复后的批处理图像，形状为 (B, embed_dim, H, W)
+        """
+        B, _, H, W = batch_image_shape
+        embed_dim = batch_processed_points.shape[2]
+        
+        # 初始化一个空的图像，形状为 (B, embed_dim, H, W)
+        batch_restored_image = torch.zeros((B, embed_dim, H, W), device=batch_processed_points.device)
+        
+        # 转换坐标为long类型
+        batch_coordinates = batch_coordinates.long()
+        
+        for b in range(B):
+            coordinates = batch_coordinates[b]
+            processed_points = batch_processed_points[b]
+            
+            x_coords = coordinates[:, 0]
+            y_coords = coordinates[:, 1]
+            
+            batch_restored_image[b, :, x_coords, y_coords] = processed_points.t()
+        
+        return batch_restored_image
+    

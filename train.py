@@ -135,7 +135,7 @@ def train(train_loader, model, optimizer, \
         # profiler.step()
         # exit()
         # gt = (batch['gt'] - gt_sub) / gt_div
-        loss = loss_fn(pred, batch["gt"])
+        loss = loss_fn(pred, batch["img"])
 
         # forward_end.record()
         # torch.cuda.synchronize()
