@@ -78,7 +78,7 @@ class myEncoder(nn.Module):
         self.mlp = MLP(input_dim= hidden_dim,hidden_dim= hidden_dim , output_dim= 3 , num_layers= 3)
 
 
-        self.decoder = myDecoder(embed_dim=hidden_dim)
+        self.decoder = myDecoder(attentionBlockNum= 4 ,embed_dim=hidden_dim)
 
 
     def gen_feat(self, img):
@@ -292,8 +292,10 @@ class myDecoder(nn.Module):
         ])
         self.decoder_norm = nn.LayerNorm(embed_dim)
         self.decoder_pred = MLP(embed_dim , embed_dim*2 , 3 , 3 )
-    def forward(self , image_shape , coordinates , processed_points , pos):
 
+
+    def forward(self , image_shape , coordinates , processed_points , pos):
+        
         restoreImage = self.restore_points_to_image(image_shape, coordinates , processed_points)
         restoreImage  = restoreImage + pos
         for block  in self.decoder_blocks:

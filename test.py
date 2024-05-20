@@ -39,7 +39,7 @@ def eval_randomN(loader , model , verbose = False , loss_Fn = nn.L1Loss()):
             pred = model(batch["img"] , batch["coord"])
 
         with torch.no_grad():
-            res = loss_Fn(pred , batch['gt'])
+            res = loss_Fn(pred , batch['img'])
         
         val_res.add(res.item(),batch["img"].shape[0])
         
