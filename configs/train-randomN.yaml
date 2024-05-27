@@ -19,7 +19,7 @@ train_dataset:
         reprob : 0
         remode : pixel
         recount : 1
-  batch_size: 20
+  batch_size: 2
   num_workers: 16
 
 val_dataset:
@@ -74,7 +74,7 @@ warmup_step_lr:
 #  gamma: 0.5
 
 
-resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/epoch-last.pth
+# resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/epoch-last.pth
 epoch_val: 600
 epoch_save: 250
 

@@ -3,11 +3,12 @@ import torch.nn as nn
 
 from galerkin_transformer.model import SimpleAttention
 from models.positionalEmbedding import PositionEmbeddingSine
+from models.ffn_layer import FFNLayer
 from models import register
 
 @register('selfAttentnio')
 class SelfAttention(nn.Module):
-    def __init__(self, n_feats=64):
+    def __init__(self, n_feats=64 ):
         super(SelfAttention, self).__init__()
         _attention_types = [
             "linear",
@@ -35,32 +36,71 @@ class SelfAttention(nn.Module):
             norm_type=norm_type,
             dropout=0.0,
         )
-
         self.posEmbedding = PositionEmbeddingSine(
             num_pos_feats=n_feats // 2, normalize=True
         )
         self.dropout = nn.Dropout(dropout)
 
         self.layerNorm = nn.LayerNorm(n_feats)
-
+        
+        self.ffn = FFNLayer(n_feats , n_feats * 2 , normalize_before= True)
+    def forward(self , x , pos = None):
+        if(len(x.shape) == 3):
+            return self.tensorForward(x,pos)
+        elif(len(x.shape) == 4):
+            return self.imageForward(x,pos)
+        else :
+            raise("输入了啥看不懂")
+        
     # x is supposed to be in shape of [ b , c , h  , w]
-    def forward(self, x):
+    def imageForward(self, x , pos = None):
         b, c, h, w = x.shape
 
         assert c == self.n_feats , "输入数据的维度与预期不一致！"
         # at first ,transpose x to [b , h*w , c]
-        pos = self.posEmbedding(x, None).permute(0, 2, 3, 1).contiguous().view(b, -1, c)
+        if (pos is None):
+            pos = self.posEmbedding(x, None).permute(0, 2, 3, 1).contiguous().view(b, -1, c)
+            
         x = x.permute(0, 2, 3, 1).contiguous().view(b, -1, c)
 
         # attention
         x, _ = self.sa(query=x + pos, key=x + pos, value=x)
+
         x = x + self.dropout(x)
-        x = self.layerNorm(x)
+
+        x = self.ffn(x)
+
+        x = x + self.dropout(x)
+        # x = self.layerNorm(x)
 
         # transpose x back to [ b , c , h  , w]
         x = x.permute(0, 2, 1).contiguous().view(b, c, h, -1)
         return x
 
+    def tensorForward(self , x , pos):
+        b, n , c = x.shape
+
+        assert c == self.n_feats , "输入数据的维度与预期不一致！"
+        assert pos is not None , "需要输入pos"
+        # # at first ,transpose x to [b , h*w , c]
+        # if (pos is None):
+        #     pos = self.posEmbedding(x, None).permute(0, 2, 3, 1).contiguous().view(b, -1, c)
+            
+        # x = x.permute(0, 2, 3, 1).contiguous().view(b, -1, c)
+
+        # attention
+        x, _ = self.sa(query=x + pos, key=x + pos, value=x)
+
+        x = x + self.dropout(x)
+
+        x = self.ffn(x)
+
+        x = x + self.dropout(x)
+        # x = self.layerNorm(x)
+
+        # # transpose x back to [ b , c , h  , w]
+        # x = x.permute(0, 2, 1).contiguous().view(b, c, h, -1)
+        return x
 
 # @register("edsr")
 # def make_edsr(

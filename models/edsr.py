@@ -11,6 +11,7 @@ from models import register
 
 from galerkin_transformer.model import SimpleAttention
 from models.positionalEmbedding import PositionEmbeddingSine
+from models.selfAttention import SelfAttention
 
 from models.pos_embed import get_2d_sincos_pos_embed
 
@@ -85,39 +86,9 @@ class ResBlock(nn.Module):
                 m.append(nn.BatchNorm2d(n_feats))
             if i == 0:
                 m.append(act)
-        # _attention_types = [
-        #     "linear",
-        #     "galerkin",
-        #     "global",
-        #     "causal",
-        #     "fourier",
-        #     "softmax",
-        #     "integral",
-        #     "local",
-        # ]
-        # self.img_chans = img_chans
-        # attention_type = _attention_types[1]
-        # _norm_types = ["instance", "layer"]
-        # norm_type = _norm_types[1]
-        # attn_norm = True
-        # n_head = 8
-        # dropout = 0.1
-        # dim_feedforward = embed_dim * 2
-        # pre_norm = True
-        # self.sa1 = SimpleAttention(
-        #     n_head=n_head,
-        #     d_model=embed_dim,
-        #     attention_type=_attention_types[1],
-        #     pos_dim=-1,
-        #     norm=attn_norm,
-        #     norm_type=norm_type,
-        #     dropout=0.0,
-        # )
-        # self.posEmbedding = PositionEmbeddingSine(
-        #     num_pos_feats=hidden_dim // 2, normalize=True
-        # )
         self.body = nn.Sequential(*m)
         self.res_scale = res_scale
+
         # self.patch_embed = PatchEmbed(image_size, patch_size, img_chans, embed_dim)
         # num_patches = self.patch_embed.num_patches
         # self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim), requires_grad=False)  # fixed sin-cos embedding
@@ -128,7 +99,8 @@ class ResBlock(nn.Module):
 
     def forward(self, x):
         res = self.body(x).mul(self.res_scale)
-
+        res += x
+        return res
         # # 1. image patchfy (2d convolution)
         # res = self.patch_embed(res)
 
@@ -150,25 +122,24 @@ class ResBlock(nn.Module):
         # TODO : 尝试用patch 吧
         # pos = self.posEmbedding(res, None)
         # res , _ = self.sa1(query = res , key = res , value = res , pos = pos)
-        res += x
-        return res
+
 
     # 1. 在最后resblock加gk
     # 2. 减少维度（
-    def unpatchify(self, x, img_chans=3):
-        """
-        x: (N, L, patch_size**2 *3)
-        imgs: (N, 3, H, W)
-        """
-        p = self.patch_embed.patch_size[0]
-        h = w = int(x.shape[1] ** 0.5)
-        assert h * w == x.shape[1]
-        # 14 ,14 , 16 ,16  , 64
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, img_chans))
-        x = torch.einsum("nhwpqc->nchpwq", x)
-        # 64 , 14 * 16  , 14 *16  ,
-        imgs = x.reshape(shape=(x.shape[0], img_chans, h * p, h * p))
-        return imgs
+    # def unpatchify(self, x, img_chans=3):
+    #     """
+    #     x: (N, L, patch_size**2 *3)
+    #     imgs: (N, 3, H, W)
+    #     """
+    #     p = self.patch_embed.patch_size[0]
+    #     h = w = int(x.shape[1] ** 0.5)
+    #     assert h * w == x.shape[1]
+    #     # 14 ,14 , 16 ,16  , 64
+    #     x = x.reshape(shape=(x.shape[0], h, w, p, p, img_chans))
+    #     x = torch.einsum("nhwpqc->nchpwq", x)
+    #     # 64 , 14 * 16  , 14 *16  ,
+    #     imgs = x.reshape(shape=(x.shape[0], img_chans, h * p, h * p))
+    #     return imgs
 
 
 class Upsampler(nn.Sequential):
@@ -342,58 +313,3 @@ def make_edsr(
     args.n_colors = 3
     return EDSR(args)
 
-
-class SelfAttention(nn.Module):
-    def __init__(self, n_feats=64):
-        super(SelfAttention, self).__init__()
-        _attention_types = [
-            "linear",
-            "galerkin",
-            "global",
-            "causal",
-            "fourier",
-            "softmax",
-            "integral",
-            "local",
-        ]
-        self.n_feats = n_feats
-
-        _norm_types = ["instance", "layer"]
-        norm_type = _norm_types[1]
-        attn_norm = True
-        n_head = 8
-        dropout = 0.1
-        self.sa = SimpleAttention(
-            n_head=n_head,
-            d_model=n_feats,
-            attention_type=_attention_types[1],
-            pos_dim=-1,
-            norm=attn_norm,
-            norm_type=norm_type,
-            dropout=0.0,
-        )
-
-        self.posEmbedding = PositionEmbeddingSine(
-            num_pos_feats=n_feats // 2, normalize=True
-        )
-        self.dropout = nn.Dropout(dropout)
-
-        self.layerNorm = nn.LayerNorm(n_feats)
-
-    # x is supposed to be in shape of [ b , c , h  , w]
-    def forward(self, x):
-        b, c, h, w = x.shape
-
-        assert c == self.n_feats , "输入数据的维度与预期不一致！"
-        # at first ,transpose x to [b , h*w , c]
-        pos = self.posEmbedding(x, None).permute(0, 2, 3, 1).contiguous().view(b, -1, c)
-        x = x.permute(0, 2, 3, 1).contiguous().view(b, -1, c)
-
-        # attention
-        x, _ = self.sa(query=x + pos, key=x + pos, value=x)
-        x = x + self.dropout(x)
-        x = self.layerNorm(x)
-
-        # transpose x back to [ b , c , h  , w]
-        x = x.permute(0, 2, 1).contiguous().view(b, c, h, -1)
-        return x
