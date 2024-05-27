@@ -74,7 +74,7 @@ warmup_step_lr:
 #  gamma: 0.5
 
 
-resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/epoch-last.pth
-epoch_val: 10
-epoch_save: 10
+# resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/epoch-last.pth
+epoch_val: 600
+epoch_save: 250
 
