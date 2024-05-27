@@ -2,7 +2,7 @@ train_dataset:
   dataset:
     name: image-folder
     args:
-      root_path: ./data/test
+      root_path: ./data/val
       repeat: 1
       
   wrapper: 
@@ -19,14 +19,14 @@ train_dataset:
         reprob : 0
         remode : pixel
         recount : 1
-  batch_size: 20
-  num_workers: 16
+  batch_size: 168
+  num_workers: 32
 
 val_dataset:
   dataset:
     name: image-folder
     args:
-      root_path: ./data/task3
+      root_path: ./data/test
   wrapper:
     name: random-n-dataloader
     args:
@@ -75,6 +75,6 @@ warmup_step_lr:
 
 
 resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/epoch-last.pth
-epoch_val: 600
-epoch_save: 250
+epoch_val: 10
+epoch_save: 10
 
