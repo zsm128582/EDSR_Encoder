@@ -23,6 +23,7 @@ class myEncoder(nn.Module):
         self.encoder = models.make(encoder_spec)
         self.sa1 = SelfAttention(n_feats=hidden_dim)
         self.sa2 = SelfAttention(n_feats=hidden_dim)
+
         # _attention_types = [
         #     "linear",
         #     "galerkin",
@@ -245,26 +246,11 @@ class myDecoder(nn.Module):
         restoreImage  = restoreImage + pos
         for block  in self.decoder_blocks:
             restoreImage = block(restoreImage)
-            # 这里要写ffn ， norm？
         restoreImage = restoreImage.permute(0,2,3,1)
         restoreImage = self.decoder_norm(restoreImage)
         restoreImage = self.decoder_pred(restoreImage)
         restoreImage = restoreImage.permute(0 ,3 ,1 ,2 )
         return restoreImage
-
-
-    # def unsuffledImage(self,image_shape , coordinates , processed_points):
-    #     _, H, W = image_shape
-    #     C = processed_points.shape[1]  # embed_dim
-    #     restored_image = torch.zeros((C, H, W), device=processed_points.device)
-    #     coordinates = coordinates.long()
-
-    #     x_coords = coordinates[:, 0]
-    #     y_coords = coordinates[:, 1]
-
-    #     restored_image[:, x_coords, y_coords] = processed_points.t()
-
-    #     return restored_image
 
     def restore_points_to_image(self ,batch_image_shape, batch_coordinates, batch_processed_points):
         """

@@ -33,7 +33,7 @@ class myDataloader(Dataset):
         # img = transforms.ToTensor()(
         #         Image.open(img_path).convert('RGB'))
         img = Image.open(img_path).convert('RGB')
-        # 做一些图像增强咯
+        # 做一些图像增强
 
         if self.augment : 
             img = self.transform(img)

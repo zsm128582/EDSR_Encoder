@@ -39,13 +39,16 @@
             "args": [
                 "--config",
                 "configs/train-randomN.yaml",
-                // "--model",
-                // "save/edsr-baseline_epoch-1000.pth",
-                // "--scale",
-                // "2",
-                // "--output",
-                // "output.png",
             ]
+        },
+        {
+            "name": "demo",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/home/zengshimao/code/Super-Resolution-Neural-Operator/demo.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": []
         },
     ]
 }
