@@ -99,10 +99,7 @@ def train(train_loader, model, optimizer, \
 
 
     for batch in pbar:
-        # batch["img"] = batch["img"].cuda(non_blocking=True)
-        # batch["coord"] = batch["coord"].cuda(non_blocking = True)
-        # batch[]
-        # batch["gt"] = batch["gt"].cuda(non_blocking=True)
+
         # data_load_start = time.time()
 
         
@@ -112,30 +109,33 @@ def train(train_loader, model, optimizer, \
 
         # data_load_end = time.time()
 
-        # with torch.profiler.profile(
-        # activities=[torch.profiler.ProfilerActivity.CPU , torch.profiler.ProfilerActivity.CUDA],
-        # # schedule=torch.profiler.schedule(
-        # #     wait=1,
-        # #     warmup=2,
-        # #     active=6,
-        # #     repeat=1),
-        # on_trace_ready=torch.profiler.tensorboard_trace_handler("./result"),
-        # with_stack=True,
-        # record_shapes=False,
-        # profile_memory=True
-        # ) as profiler:
         # inp = (batch['inp'] - inp_sub) / inp_div
         # forward_start = torch.cuda.Event(enable_timing=True)
         # forward_end = torch.cuda.Event(enable_timing=True)
         # forward_start.record()
 
+        b , c , h , w = batch["img"].shape
+        pred,mask = model(batch["img"])
+        # loss 1:
+        # mask : [ b , 224*224 ]
+        # mask = mask.unsqueeze(-1).repeat(1, 1, 3)
+        
+        # mask = mask.reshape(shape=(b,h,w,c))
+        # mask = mask.permute(0,3,1,2)
+        # img_paste = batch["img"] * (1 - mask ) + pred * mask
+        # TODO:这里可能会导致正确部分的loss太多，冲淡了需要预测部分的loss，修改一下。
+        # loss = loss_fn(pred, batch["img"])
 
-        pred = model(batch["img"], batch['coord'])
-
-        # profiler.step()
-        # exit()
-        # gt = (batch['gt'] - gt_sub) / gt_div
-        loss = loss_fn(pred, batch["img"])
+        # loss 2
+        # pred  batch : b 3 h w 
+        # mask : b 224*224
+        loss = (pred - batch["img"]) ** 2
+        loss = loss.permute(0,2,3,1) 
+        loss = loss.mean(dim=-1)  # [N, L], mean loss per pixel
+        loss = loss.reshape(b,h*w)
+        loss = (loss * mask).sum() / mask.sum()
+        # gt = (batch['gt'] - gt_sub) / gt_div 
+        
 
         # forward_end.record()
         # torch.cuda.synchronize()
@@ -164,7 +164,8 @@ def train(train_loader, model, optimizer, \
         # print(f"For this batch : Data Load Time: {data_load_end - data_load_start:.4f}s, Forward Time: {forward_time:.4f}ms, Backward Time: {backward_time:.4f}ms")
         
         pred = None; loss = None
-        pbar.set_description('train {:.4f}'.format(train_loss.item()))  
+        pbar.set_description('train loss: {:.4f}, lr: {:.6f}'.format(train_loss.item(),optimizer.param_groups[0]['lr'] ))
+        # writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
         # profiler.step()
         # exit()
 
@@ -203,7 +204,7 @@ def main(config_, save_path):
         log_info = ['epoch {}/{}'.format(epoch, epoch_max)]
 
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
-
+        
         train_loss = train(train_loader, model, optimizer, \
                            epoch)
         if lr_scheduler is not None:

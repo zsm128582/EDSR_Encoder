@@ -43,14 +43,14 @@ class myDataloader(Dataset):
         img_height = img.shape[1]
 
 
-        randomCoords = generate_random_points(img_width , img_height , self.point_num)
-        randomPoints = select_points_from_image(img , randomCoords)
+        # randomCoords = generate_random_points(img_width , img_height , self.point_num)
+        # randomPoints = select_points_from_image(img , randomCoords)
         # torch.tensor(randomPoints)
 
         return {
             'img': img,
-            'coord': randomCoords,
-            'gt': randomPoints
+            # 'coord': randomCoords,
+            # 'gt': randomPoints
         }
 
     def build_transform(self ,is_train):
@@ -90,5 +90,6 @@ class myDataloader(Dataset):
         t.append(transforms.Normalize(mean, std))
         return transforms.Compose(t)
  
+        
 
  

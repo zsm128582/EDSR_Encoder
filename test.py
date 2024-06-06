@@ -36,7 +36,7 @@ def eval_randomN(loader , model , verbose = False , loss_Fn = nn.L1Loss()):
             batch[k] = v.cuda(non_blocking = True)
         
         with torch.no_grad():
-            pred = model(batch["img"] , batch["coord"])
+            pred ,mask = model(batch["img"])
 
         with torch.no_grad():
             res = loss_Fn(pred , batch['img'])

@@ -12,6 +12,7 @@ from galerkin_transformer.model import SimpleAttention
 from models.positionalEmbedding import PositionEmbeddingSine
 from models.selfAttention import SelfAttention
 from models.ffn_layer import FFNLayer
+from models.pos_embed import get_2d_sincos_pos_embed
 # from positionalEmbedding import NestedTensor
 
 
@@ -24,61 +25,10 @@ class myEncoder(nn.Module):
         self.sa1 = SelfAttention(n_feats=hidden_dim)
         self.sa2 = SelfAttention(n_feats=hidden_dim)
 
-        # _attention_types = [
-        #     "linear",
-        #     "galerkin",
-        #     "global",
-        #     "causal",
-        #     "fourier",
-        #     "softmax",
-        #     "integral",
-        #     "local",
-        # ]
-
-        
-        # attention_type = _attention_types[1]
-        # _norm_types = ["instance", "layer"]
-        # norm_type = _norm_types[1]
-        # attn_norm = True
-        # hidden_dim = 64
-        # n_head = 8
-        # dropout = 0.1
-        # dim_feedforward = hidden_dim * 2
-        # pre_norm = True
-        # self.sa1 = SimpleAttention(
-        #     n_head=n_head,
-        #     d_model=hidden_dim,
-        #     attention_type=_attention_types[1],
-        #     pos_dim=-1,
-        #     norm=attn_norm,
-        #     norm_type=norm_type,
-        #     dropout=0.0,
-        # )
-
-        # self.sa2 = SimpleAttention(
-        #     n_head=n_head,
-        #     d_model=hidden_dim,
-        #     attention_type=_attention_types[1],
-        #     pos_dim=-1,
-        #     norm=attn_norm,
-        #     norm_type=norm_type,
-        #     dropout=0.0,
-        # )
-        
-        self.posEmbedding = PositionEmbeddingSine(
-            num_pos_feats=hidden_dim // 2, normalize=True
-        )
-
-        # self.dropout = nn.Dropout(dropout)
-
-        # self.layerNorm = nn.LayerNorm(hidden_dim)
-
-        # self.ffn = FFNLayer(
-        #             d_model=hidden_dim,
-        #             dim_feedforward=dim_feedforward,
-        #             dropout=0.0,
-        #             normalize_before=pre_norm,
-        #         )
+        # TODO:这里的224不要写死
+        self.pos_embed = nn.Parameter(torch.zeros(1, 224*224, hidden_dim), requires_grad=False)
+        pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], 224, cls_token=False)
+        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
         self.mlp = MLP(input_dim= hidden_dim,hidden_dim= hidden_dim*2, output_dim= 3 , num_layers= 3)
 
 
@@ -86,90 +36,76 @@ class myEncoder(nn.Module):
 
 
     def gen_feat(self, img):
-        self.img = img
-        self.feat = self.encoder(img)
-        return self.feat
+        return  self.encoder(img)
 
-    def forward(self, img, coords):
-        self.coords = coords
-        #  1. 用edsr提取图像特征
-        # timer_start = torch.cuda.Event(enable_timing=True)
-        # timer_end = torch.cuda.Event(enable_timing=True)
-        # timer_start.record()
+    def random_masking(self, x, mask_ratio):
+        """
+        Perform per-sample random masking by per-sample shuffling.
+        Per-sample shuffling is done by argsort random noise.
+        x: [N, L, D], sequence
+        """
+        N, L, D = x.shape  # batch, length, dim
+        len_keep = int(L * (1 - mask_ratio))
+        
+        noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
+        
+        # sort noise for each sample
+        # argsort 返回的是索引值
+        ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
+        ids_restore = torch.argsort(ids_shuffle, dim=1)
 
-        self.gen_feat(img)
+        # keep the first subset
+        ids_keep = ids_shuffle[:, :len_keep]
+        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
 
-        # timer_end.record()
-        # torch.cuda.synchronize()
-        # getFeat_time = timer_start.elapsed_time(timer_end)
+        # generate the binary mask: 0 is keep, 1 is remove
+        mask = torch.ones([N, L], device=x.device)
+        mask[:, :len_keep] = 0
+        # unshuffle to get the binary mask
+        mask = torch.gather(mask, dim=1, index=ids_restore)
 
-        # 2. sampling        or    mask (和 mae 有什么区别？)
-
-        # timer_start.record()
-
-        samples = self.get_samples(self.feat, self.coords)
-
-        # samples = NestedTensor(tensors=samples ,  mask=coords)
-
-        # 输入 ： x : [ b , c , h , w]  , mask : [ b , h , w]
-        pos = self.posEmbedding(self.feat, None)
-
-        # 然后对pos进行sampling
-        samples_pos = self.get_samples(pos, self.coords)
-
-        # timer_end.record()
-        # torch.cuda.synchronize()
-        # sampleTime = timer_start.elapsed_time(timer_end)
-
-
-
-        # 3. garkerlin + pos embedding
-
-
-        # query=samples + samples_pos
-        # key=samples + samples_pos
-        # value=samples 
-        #  q , k , v
-        # timer_start.record()
-
-        output= self.sa1(samples , samples_pos)
-        output = self.sa2(output , samples_pos)
-
-        # output , _ = self.sa2(
-        #     query=samples + samples_pos, key=samples + samples_pos, value=samples
-        # )
-
-        # samples = samples +  self.dropout(output)
-        # samples = self.layerNorm(samples)
-
-        # samples = self.ffn(samples)
-
-        restoreImage = self.decoder(img.shape , self.coords , samples , pos)
+        return x_masked, mask, ids_restore
+    def forwardEncoder(self , img):
         
 
+        # [b,c,h,w]
+        x = self.gen_feat(img)
 
-        #然后这里写pos embedding
-        #然后相加
 
-        
-        #然后经过几层 transformer  ， mae用了8层？ 
-        #然后就经过一个mlp
+        # TODO:在这里将x变成[b,hw,c]
+        # x = torch.einsum("bchw->blc", x)
 
-        # timer_end.record()
-        # torch.cuda.synchronize()
-        # attention_time = timer_start.elapsed_time(timer_end)
+        x = x.permute(0, 2, 3, 1)
+        x = x.reshape(x.size(0), -1, x.size(3))
 
-        # print(f" generate feature time : {getFeat_time:.4f}ms,  get sample time {sampleTime:.4f}ms, attention Time: {attention_time:.4f}ms")
+        x = x + self.pos_embed
 
-        return restoreImage
-        #  add residual layer
-        # 4. decoder
-        
-        # a simple mlp ?
 
-        # 5. loss
+        x , mask , id_restore = self.random_masking(x , 0.75)
 
-        # or ...
+
+        x= self.sa1(x)
+        x = self.sa2(x)
+
+
+
+        return x , mask , id_restore
+    
+    def forwardDecoder(self,img , id_restore):
+
+
+        return self.decoder(img,id_restore)
+    
+    def forward(self, img):
+        h = img.shape[2]
+        w = img.shape[3]
+        x , mask , id_restore = self.forwardEncoder(img)
+        pred = self.forwardDecoder(x , id_restore)
+        # pred 是 【b,l,3】
+        # 在这里变成[b,3,h,w]
+        pred = pred.reshape(pred.size(0), h , w, pred.size(2))
+        pred = pred.permute(0, 3, 1, 2)
+        return pred , mask
 
     # input : img: tensor[ b , c , w , h ]   coords : [b , n , 2 ]
     # output : tensor[ b , c , len(coords)]
@@ -239,19 +175,35 @@ class myDecoder(nn.Module):
         self.decoder_norm = nn.LayerNorm(embed_dim)
         self.decoder_pred = MLP(embed_dim , embed_dim*2 , 3 , 3 )
 
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        torch.nn.init.normal_(self.mask_token, std=.02)
 
-    def forward(self , image_shape , coordinates , processed_points , pos):
-        
-        restoreImage = self.restore_points_to_image(image_shape, coordinates , processed_points)
-        restoreImage  = restoreImage + pos
+        # TODO:这里的224不要写死
+        self.pos_embed = nn.Parameter(torch.zeros(1, 224*224, embed_dim), requires_grad=False)
+        pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], 224, cls_token=False)
+        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+
+    def forward(self , x , ids_restore):
+
+        #现在变成了[b,l,c]
+        restoreImage = self.unshuffle(x , ids_restore)
+        restoreImage  = restoreImage + self.pos_embed
         for block  in self.decoder_blocks:
             restoreImage = block(restoreImage)
-        restoreImage = restoreImage.permute(0,2,3,1)
         restoreImage = self.decoder_norm(restoreImage)
         restoreImage = self.decoder_pred(restoreImage)
-        restoreImage = restoreImage.permute(0 ,3 ,1 ,2 )
         return restoreImage
+    
+    def unshuffle(self , x , ids_restore):
+        # x应该是什么样的？[B，Lm,C]?
+        # ids呢？[B , L] 
+        # 我才masktokens现在变成了b , L-Lm , dim
+        mask_tokens = self.mask_token.repeat(x.shape[0], ids_restore.shape[1] - x.shape[1], 1)
+        # 然后现在x_变成了L
+        x_ = torch.cat([x, mask_tokens], dim=1)  # no cls token
+        x_ = torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2]))  # unshuffle
 
+        return x_
     def restore_points_to_image(self ,batch_image_shape, batch_coordinates, batch_processed_points):
         """
         将批处理的处理后的点放回它们原来的位置

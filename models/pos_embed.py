@@ -13,6 +13,8 @@ import numpy as np
 
 import torch
 
+# 这个是从mae中拿过来的
+# 下面那个是从mask2former中拿过来的，两者其实都一样，都是对横纵坐标分别做posembed ，然后concat起来，所以之前输入的时候需要embed——dim//2，拼起来之后就形成了embeddim
 # --------------------------------------------------------
 # 2D sine-cosine position embedding
 # References:

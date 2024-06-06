@@ -44,11 +44,12 @@ class SelfAttention(nn.Module):
         self.layerNorm = nn.LayerNorm(n_feats)
         
         self.ffn = FFNLayer(n_feats , n_feats * 2 , normalize_before= True)
-    def forward(self , x , pos = None):
+        
+    def forward(self , x  ,  pos = None):
         if(len(x.shape) == 3):
-            return self.tensorForward(x,pos)
+            return self.tensorForward(x)
         elif(len(x.shape) == 4):
-            return self.imageForward(x,pos)
+            return self.imageForward(x)
         else :
             raise("输入了啥看不懂")
         
@@ -77,25 +78,24 @@ class SelfAttention(nn.Module):
         x = x.permute(0, 2, 1).contiguous().view(b, c, h, -1)
         return x
 
-    def tensorForward(self , x , pos):
+    def tensorForward(self , x ):
         b, n , c = x.shape
 
         assert c == self.n_feats , "输入数据的维度与预期不一致！"
-        assert pos is not None , "需要输入pos"
         # # at first ,transpose x to [b , h*w , c]
         # if (pos is None):
         #     pos = self.posEmbedding(x, None).permute(0, 2, 3, 1).contiguous().view(b, -1, c)
             
         # x = x.permute(0, 2, 3, 1).contiguous().view(b, -1, c)
-
+        
         # attention
-        x, _ = self.sa(query=x + pos, key=x + pos, value=x)
+        x_, _ = self.sa(query=x , key=x , value=x)
 
-        x = x + self.dropout(x)
+        x = x + self.dropout(x_)
 
-        x = self.ffn(x)
+        x_ = self.ffn(x)
 
-        x = x + self.dropout(x)
+        x = x + self.dropout(x_)
         # x = self.layerNorm(x)
 
         # # transpose x back to [ b , c , h  , w]
