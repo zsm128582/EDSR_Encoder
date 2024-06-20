@@ -74,8 +74,9 @@ def saveImage(result , name):
     predImage.save(name)
 
 if __name__ == '__main__':
-    model_path = "/home/zengshimao/code/Super-Resolution-Neural-Operator/result/epoch-best-rbwi.pth"
-    input = "/home/zengshimao/code/Super-Resolution-Neural-Operator/data/test/ILSVRC2012_test_00000245.JPEG"
+    model_path = "/home/zengshimao/code/Super-Resolution-Neural-Operator/save/_train-randomN/epoch-last.pth"
+    # input = "/home/zengshimao/code/Super-Resolution-Neural-Operator/data/test/ILSVRC2012_test_00000245.JPEG"
+    input = "/home/zengshimao/code/Super-Resolution-Neural-Operator/data/test/ILSVRC2012_test_00000023.JPEG"
     img = Image.open(input).convert('RGB')
     transform = build_transform(True)
     img = transform(img)
@@ -83,7 +84,7 @@ if __name__ == '__main__':
     img_width = img.shape[2]
     img_height = img.shape[1]
  
-    saveImage(img.numpy(),"/home/zengshimao/code/Super-Resolution-Neural-Operator/result/last/afterTransform-best.png")
+    saveImage(img.numpy(),"/home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention/gt.png")
     # result = img.numpy()
     # result = result.transpose(1,2,0)
     # result = (result * 255).astype(np.uint8)
@@ -91,7 +92,7 @@ if __name__ == '__main__':
     # predImage.save()
 
 
-    randomCoords = generate_random_points(img_width , img_height , 8000)
+    # randomCoords = generate_random_points(img_width , img_height , 8000)
 
     # randomPoints = select_points_from_image(img , randomCoords)
     # os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
@@ -103,19 +104,30 @@ if __name__ == '__main__':
 
     # make it batch like
     img = img.unsqueeze(0)
-    randomCoords = randomCoords.unsqueeze(0)
+    # randomCoords = randomCoords.unsqueeze(0)
 
     img = img.cuda(non_blocking=True)
-    randomCoords = randomCoords.cuda(non_blocking=True)
+    # randomCoords = randomCoords.cuda(non_blocking=True)
 
-    pred = model(img , randomCoords)
+    pred , mask = model(img)
+
+    mask = mask.view(pred.shape[-2],pred.shape[-1])
+
+    print(torch.sum(mask))
+
+    aftermask = img * (1- mask)
+
+
+    aftermask = aftermask.detach().cpu().numpy()
+
+    saveImage(aftermask[0] , "/home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention/aftermask.png")
 
     result = pred.detach()
     result = result.cpu()
     result = result.numpy()
     result = result[0]
 
-    saveImage(result , "/home/zengshimao/code/Super-Resolution-Neural-Operator/result/last/pred-best.png")
+    saveImage(result , "/home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention/pred.png")
 
 
 

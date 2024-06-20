@@ -39,28 +39,6 @@ class MeanShift(nn.Conv2d):
             p.requires_grad = False
 
 
-# ```
-
-# {
-#     "live-restore": true,
-#     "registry-mirrors": [
-#         "https://6kx4zyno.mirror.aliyuncs.com",
-#         "https://registry.docker-cn.com",
-#         "http://hub-mirror.c.163.com",
-#         "https://docker.mirrors.ustc.edu.cn"
-#     ],
-#     "runtimes": {
-#         "nvidia": {
-#             "args": [],
-#             "path": "nvidia-container-runtime"
-#         }
-#     },
-#     "dns": ["8.8.8.8", "114.114.114.114"]
-# }
-
-# ````
-
-
 class ResBlock(nn.Module):
     def __init__(
         self,
@@ -202,26 +180,34 @@ class EDSR(nn.Module):
         # define head module
         m_head = [conv(args.n_colors, n_feats, kernel_size)]
 
+
+        m_body = []
+
+        m_body.append(SelfAttention(n_feats))
+        for _ in range(n_resblocks):
+            m_body.append(ResBlock(conv, n_feats, kernel_size, act=act, res_scale=args.res_scale))
         # define body module
-        m_body = [
-            ResBlock(conv, n_feats, kernel_size, act=act, res_scale=args.res_scale)
-            for _ in range(n_resblocks)
-        ]
+        # m_body = [
+        #     ResBlock(conv, n_feats, kernel_size, act=act, res_scale=args.res_scale)
+        #     for _ in range(n_resblocks)
+        # ]
         
 
 
-        new_body = []
-        for i, block in enumerate(m_body):
-            new_body.append(block)
-            if( (i+1) % 4 == 0):
-                new_body.append(SelfAttention(n_feats))
+        # new_body = []
+        # for i, block in enumerate(m_body):
+        #     new_body.append(block)
+        #     if( (i+1) % 4 == 0):
+        #         new_body.append(SelfAttention(n_feats))
 
-        new_body.append(conv(n_feats, n_feats, kernel_size))  
-        del m_body
+        # new_body.append(conv(n_feats, n_feats, kernel_size))  
+        # del m_body
 
 
+        # self.head = nn.Sequential(*m_head)
+        # self.body = nn.Sequential(*new_body)
         self.head = nn.Sequential(*m_head)
-        self.body = nn.Sequential(*new_body)
+        self.body = nn.Sequential(*m_body)
 
         print(self.body)
 

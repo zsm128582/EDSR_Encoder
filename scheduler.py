@@ -20,7 +20,7 @@ class GradualWarmupScheduler(_LRScheduler):
             return [base_lr * self.multiplier for base_lr in self.base_lrs]
 
         # return [base_lr * ((self.multiplier - 1.) * self.last_epoch / self.total_epoch + 1.) for base_lr in self.base_lrs]
-        return [base_lr * (self.last_epoch+1) / (self.total_epoch+1)  for base_lr in self.base_lrs]
+        return [base_lr * (self.last_epoch+0.5) / (self.total_epoch+0.5)  for base_lr in self.base_lrs]
 
 
     def step(self, epoch=None, metrics=None):
