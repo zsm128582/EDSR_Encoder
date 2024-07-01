@@ -5,6 +5,6 @@ save/
 *.simg
 *.pyc
 result/
-/data
+data
 *.log
 
