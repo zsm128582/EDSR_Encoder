@@ -14,36 +14,41 @@ from models.selfAttention import SelfAttention
 from models.ffn_layer import FFNLayer
 from models.pos_embed import get_2d_sincos_pos_embed
 from timm.models.vision_transformer import PatchEmbed, Block
+from functools import partial
 
 # from positionalEmbedding import NestedTensor
 
 
-@register("random_N_encoder")
-class myEncoder(nn.Module):
+class Classifitor(nn.Module):
     def __init__(self, encoder_spec, width=256, blocks=16) -> None:
         super().__init__()
-        self.width = width
         hidden_dim = 64
+        num_classes = 100
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
+        torch.nn.init.normal_(self.cls_token, std=.02)
+
         self.encoder = models.make(encoder_spec)
         self.sa1 = SelfAttention(n_feats=hidden_dim)
         self.sa2 = SelfAttention(n_feats=hidden_dim)
 
-        self.cls_token = nn.Parameter(torch.zeros(1,1,hidden_dim))
-        torch.nn.init.normal_(self.cls_token, std=.02)
-
-        # TODO:这里的224不要写死
+        # TODO:这里的224不要写死 , 这里的+1 是为了cls token 
         self.pos_embed = nn.Parameter(
-            torch.zeros(1, self.width ** 2 + 1, hidden_dim), requires_grad=False
+            torch.zeros(1, 224 * 224 + 1, hidden_dim), requires_grad=False
         )
         pos_embed = get_2d_sincos_pos_embed(
-            self.pos_embed.shape[-1], self.width, cls_token=True
+            self.pos_embed.shape[-1], 224, cls_token=True
         )
         self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+
         self.mlp = MLP(
             input_dim=hidden_dim, hidden_dim=hidden_dim * 2, output_dim=3, num_layers=3
         )
 
-        self.decoder = myDecoder(attentionBlockNum=4, embed_dim=hidden_dim)
+        self.norm = partial(nn.LayerNorm, eps=1e-6)
+
+        self.head = nn.Linear(hidden_dim, num_classes)
+
+        # self.decoder = myDecoder(attentionBlockNum=4, embed_dim=hidden_dim)
 
     def gen_feat(self, img):
         return self.encoder(img)
@@ -91,33 +96,40 @@ class myEncoder(nn.Module):
 
         x = x + self.pos_embed[:,1:,:]
 
-        x, mask, id_restore = self.random_masking(x, 0.75)
+        # x, mask, id_restore = self.random_masking(x, 0.75)
 
-        cls_token  = self.cls_token + self.pos_embed[:,:1,:]
-        cls_token = cls_token.expand(x.shape[0],-1,-1)
-        x = torch.cat((cls_token , x) , dim=1)
+        # append cls token
+        cls_token = self.cls_token + self.pos_embed[:, :1, :]
+        cls_tokens = cls_token.expand(x.shape[0], -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
 
         x = self.sa1(x)
         x = self.sa2(x)
+        
 
-        return x, mask, id_restore
+        return x
 
     def forwardDecoder(self, img, id_restore, mask):
 
         return self.decoder(img, id_restore, mask)
+    
+    def predictHead(self , x):
+        return self.head(x)
 
     def forward(self, img):
         h = img.shape[2]
         w = img.shape[3]
-        x, mask, id_restore = self.forwardEncoder(img)
+        x= self.forwardEncoder(img)
+        x = self.norm(x)
+        cls_token = x[:, 0]
 
-
-        
-        pred = self.forwardDecoder(x, id_restore, mask)
+        pred = self.predictHead(cls_token)
+        return pred
+        # pred = self.forwardDecoder(x, id_restore, mask)
         # pred 是 【b,l,3】
         # 在这里变成[b,3,h,w]
 
-        return pred, mask
+        return pred
 
     # input : img: tensor[ b , c , w , h ]   coords : [b , n , 2 ]
     # output : tensor[ b , c , len(coords)]
@@ -179,14 +191,14 @@ class MLP(nn.Module):
 
 
 class myDecoder(nn.Module):
-    def __init__(self, attentionBlockNum=8, embed_dim=64,width = 224):
+    def __init__(self, attentionBlockNum=8, embed_dim=64):
         super().__init__()
         self.decoder_blocks = nn.ModuleList(
             [SelfAttention(n_feats=embed_dim) for i in range(attentionBlockNum)]
         )
         # TODO:这里也一样！
-        self.width = width
-
+        self.h = 224
+        self.w = 224
         self.intepolate = False
         self.patchAttention = True
 
@@ -196,17 +208,17 @@ class myDecoder(nn.Module):
         self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         torch.nn.init.normal_(self.mask_token, std=0.02)
 
-        # TODO:这里的224不要写死
+        # TODO:这里的224不要写死 , +1 是为了position embedding
         self.pos_embed = nn.Parameter(
-            torch.zeros(1, self.width **2, embed_dim), requires_grad=False
+            torch.zeros(1, 224 * 224 + 1, embed_dim), requires_grad=False
         )
-        temp = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], self.width, cls_token=False)
+        temp = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], 224, cls_token=True)
         self.pos_embed.data.copy_(torch.from_numpy(temp).float().unsqueeze(0))
 
         if self.patchAttention:
             self.patch_size = 16
             self.patchEmbed = PatchEmbed(
-                self.width, patch_size=self.patch_size, in_chans=embed_dim, embed_dim=1024
+                self.h, patch_size=self.patch_size, in_chans=embed_dim, embed_dim=1024
             )
             self.num_patches = self.patchEmbed.num_patches
             self.patch_pos_embed = nn.Parameter(
@@ -239,12 +251,11 @@ class myDecoder(nn.Module):
         # mask : [b , l]  1 denote mask , 0 denote left
         # 现在变成了[b,l,c]
         restoreImage = self.unshuffle(x, ids_restore)
-        restoreImage = restoreImage[:,1:,:]  #在之后的预测工作中都不会用到clstoken 了，并且因为多了一个cls token 导致分patch非常地难受，所以提前就把它去掉了
         b, l, c = restoreImage.shape
         # restore 之后依然是blc
         if self.intepolate:
-            restoreImage = restoreImage.view(b, self.width, self.width, c)
-            mask = mask.view(b, self.width, self.width)
+            restoreImage = restoreImage.view(b, self.h, self.w, c)
+            mask = mask.view(b, self.h, self.w)
 
             low_res_known_pixels = F.interpolate(
                 restoreImage.permute(0, 3, 1, 2), scale_factor=0.5, mode="bilinear"
@@ -254,10 +265,10 @@ class myDecoder(nn.Module):
             )
 
             interpolated_pixels = F.interpolate(
-                low_res_known_pixels, size=(self.width, self.width), mode="bilinear"
+                low_res_known_pixels, size=(self.h, self.w), mode="bilinear"
             )
             interpolated_mask = F.interpolate(
-                low_res_mask, size=(self.width, self.width), mode="bilinear"
+                low_res_mask, size=(self.h, self.w), mode="bilinear"
             )
 
             interpolated_mask = interpolated_mask.expand(-1, c, -1, -1)
@@ -280,7 +291,7 @@ class myDecoder(nn.Module):
             # 重排后的长度还是太大了，还需要通过一个ffn降维到大约2048或1024
 
             # 第二种就是通过2d卷积的方式进行 , restoreImage : BLC ， 而x需要为 b ,c ,h ,w
-            restoreImage = restoreImage.reshape(b, self.width, self.width, c)
+            restoreImage = restoreImage.reshape(b, self.h, self.w, c)
             # 现在x变成bchw了
             x = restoreImage.permute(0, 3, 1, 2)
 
@@ -301,7 +312,8 @@ class myDecoder(nn.Module):
             # 我这里需要考虑的是 ： 是把groud truth patchify 还是把 pred unpatchify
             # 现在x : b 3 h w
             x = self.unpatchify(x)
-            return x
+            # 去除 cls token
+            return x[:,1:,:] 
         else:
             # 这一块就是正常的使用galerkin
             restoreImage = restoreImage + self.pos_embed
@@ -310,7 +322,7 @@ class myDecoder(nn.Module):
 
             restoreImage = self.decoder_norm(restoreImage)
             restoreImage = self.decoder_pred(restoreImage)
-            restoreImage = restoreImage.reshape(restoreImage.size(0), self.width, self.width, restoreImage.size(2))
+            restoreImage = restoreImage.reshape(restoreImage.size(0), self.h, self.w, restoreImage.size(2))
             restoreImage = restoreImage.permute(0, 3, 1, 2)
             return restoreImage
 
@@ -319,14 +331,14 @@ class myDecoder(nn.Module):
         # ids呢？[B , L]
         # 我才masktokens现在变成了b , L-Lm , dim
         mask_tokens = self.mask_token.repeat(
-            x.shape[0], ids_restore.shape[1] - x.shape[1] + 1, 1
+            x.shape[0], ids_restore.shape[1] - x.shape[1], 1
         )
         # 然后现在x_变成了L
         x_ = torch.cat([x[:,1:,:], mask_tokens], dim=1)  # no cls token
         x_ = torch.gather(
             x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2])
         )  # unshuffle
-        x = torch.cat([x[:, :1, :], x_], dim=1)  # append cls token
+        x = torch.cat(x[:,:1,:],x_)
         return x
     
 
