@@ -5,18 +5,22 @@ import yaml
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader , random_split
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.optim.lr_scheduler import CosineAnnealingLR
+from models.classifitor import Classifier
+import sys
+
+import math
 
 import datasets
 import models
 import utils
-from test import eval_psnr
 from test import eval_randomN
 from scheduler import GradualWarmupScheduler
-import time
-from torch.profiler import profile, record_function, ProfilerActivity, tensorboard_trace_handler
+from datasets.validationWrapper import ValidationWrapper
+from datasets.image_folder import ImageFolder
+from timm.models.layers import trunc_normal_
 
 
 def make_data_loader(spec, tag=''):
@@ -36,20 +40,49 @@ def make_data_loader(spec, tag=''):
 
 
 def make_data_loaders():
-    train_loader = make_data_loader(config.get('train_dataset'), tag='train')
-    val_loader = make_data_loader(config.get('val_dataset'), tag='val')
+    # TODO:change a root path
+    dataset = ValidationWrapper(ImageFolder("/home/zengshimao/code/Super-Resolution-Neural-Operator/data/validation"),augmentConfig=config['augmentConfigs'],augment=True)
+    train_size = int(0.8 * len ( dataset))
+    test_size = len(dataset) - train_size
+    train_dataset , test_dataset = random_split(dataset , [train_size , test_size])
+    train_loader = DataLoader(train_dataset, batch_size=config.get('train_batchsize'),
+        shuffle=True, num_workers=8, pin_memory=True,persistent_workers=True)
+    val_loader = DataLoader(test_dataset , batch_size=config.get('val_batchsize'),shuffle=False,num_workers=8, pin_memory=True,persistent_workers=True)
     return train_loader, val_loader
 
+
+def interpolate_pos_embed(model , checkpoint_model):
+    if 'pos_embed' in checkpoint_model:
+        pos_embed_checkpoint = checkpoint_model['pos_embed']
+        embedding_size = pos_embed_checkpoint.shape[-1]
+
+        # 这里需要改成实际输入的点数
+        pixelNum = model.width ** 2
+        # extra就是cls token的个数，就是总的token树剪掉像素点的个数，剩下的就是cls token的数量
+        num_extra_tokens = model.pos_embed.shape[-2] - pixelNum
+        # height (== width) for the checkpoint position embedding
+        orig_size = int((pos_embed_checkpoint.shape[-2] - num_extra_tokens) ** 0.5)
+        # height (== width) for the new position embedding
+        new_size = int(pixelNum ** 0.5)
+        # class_token and dist_token are kept unchanged
+        if orig_size != new_size:
+            print("Position interpolate from %dx%d to %dx%d" % (orig_size, orig_size, new_size, new_size))
+            extra_tokens = pos_embed_checkpoint[:, :num_extra_tokens]
+            # only the position tokens are interpolated
+            pos_tokens = pos_embed_checkpoint[:, num_extra_tokens:]
+            pos_tokens = pos_tokens.reshape(-1, orig_size, orig_size, embedding_size).permute(0, 3, 1, 2)
+            pos_tokens = torch.nn.functional.interpolate(
+                pos_tokens, size=(new_size, new_size), mode='bicubic', align_corners=False)
+            pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
+            new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
+            checkpoint_model['pos_embed'] = new_pos_embed 
 
 def prepare_training():
     if (config.get('resume') is not None) and os.path.exists(config.get('resume')):
         sv_file = torch.load(config['resume'],map_location=torch.device('cpu'))
         model = models.make(sv_file['model'], load_sd=True).cuda()
         optimizer = utils.make_optimizer(
-            model.parameters(), sv_file['optimizer'],batchsize=config['train_dataset']['batch_size'] , base_lr=config['base_lr'], load_sd=True)
-        base_lr = config['optimizer']['args']['base_lr']
-        actral_lr = base_lr * config['train_dataset']['batch_size'] / 256 
-        optimizer.param_groups[0]['lr'] = actral_lr
+            model.parameters(), sv_file['optimizer'],batchsize=config['train_batchsize'], base_lr=config['base_lr'], load_sd=True)
         epoch_start = sv_file['epoch'] + 1
         if config.get('multi_step_lr') is None:
             cosine = CosineAnnealingLR(optimizer, config['epoch_max']-config['warmup_step_lr']['total_epoch'])
@@ -60,10 +93,31 @@ def prepare_training():
             lr_scheduler.step(e)
             #lr_scheduler.step()
         print(epoch_start,optimizer.param_groups[0]['lr'])
-    else:
-        model = models.make(config['model']).cuda()
+    elif(config.get('finetune') is not None) and os.path.exists(config.get('finetune')):
+        
+        encoder_spec = {}
+        encoder_spec["name"] = "edsr-baseline"
+
+        encoder_spec["args"] = {
+            "no_upsampling" : True
+        }
+        model = Classifier(encoder_spec,width=256,num_classes=1000).cuda()
+        checkpoint = torch.load(config.get('finetune'),map_location='cpu')
+        checkpoint_model = checkpoint['model']['sd']
+        decoderKeys = []
+        for key in checkpoint_model.keys():
+                if(key.startswith('decoder')):
+                    decoderKeys.append(key)
+        for key in decoderKeys:
+            del checkpoint_model[key]
+
+        interpolate_pos_embed(model , checkpoint_model)
+        msg = model.load_state_dict(checkpoint_model, strict=False)
+        print(msg)
+        trunc_normal_(model.head.weight, std=2e-5)
+
         optimizer = utils.make_optimizer(
-            model.parameters(),config['optimizer'],batchsize=config['train_dataset']['batch_size'] , base_lr=config['base_lr'])
+            model.parameters(), config['optimizer'],batchsize=config['train_batchsize'] , base_lr=config.get('base_lr'))
         epoch_start = 1
         if config.get('multi_step_lr') is None:
             cosine = CosineAnnealingLR(optimizer, config['epoch_max']-config['warmup_step_lr']['total_epoch'])
@@ -74,102 +128,52 @@ def prepare_training():
     log('model: #params={}'.format(utils.compute_num_params(model, text=True)))
     return model, optimizer, epoch_start, lr_scheduler
 
-# def trace_handler(p):
-#     output = p.key_averages().table(sort_by="self_cuda_time_total", row_limit=10)
-#     print(output)
-#     p.export_chrome_trace("/tmp/trace_" + str(p.step_num) + ".json")
+
 
 def train(train_loader, model, optimizer, \
          epoch):
-    # print(model)
-    # exit()
+
     
     model.train()
-    loss_fn = nn.L1Loss()
+    loss_fn = nn.CrossEntropyLoss()
     train_loss = utils.Averager()
-    # metric_fn = utils.calc_psnr
 
-    # inp_sub = torch.FloatTensor(t['sub']).view(1, -1, 1, 1).cuda()
-    # inp_div = torch.FloatTensor(t['div']).view(1, -1, 1, 1).cuda()
-    # gt_sub = torch.FloatTensor(t['sub']).view(1, 1, -1).cuda()
-    # gt_div = torch.FloatTensor(t['div']).view(1, 1, -1).cuda()
-    #num_dataset = 800 # DIV2K
-    #iter_per_epoch = int(num_dataset / config.get('train_dataset')['batch_size'] \
-    #                    * config.get('train_dataset')['dataset']['args']['repeat'])
     iteration = 0
     pbar = tqdm(train_loader, leave=False, desc='train')
 
 
-    for batch in pbar:
-
-        # data_load_start = time.time()
-
-        
+    for batch in pbar:        
 
         for k,v in batch.items():
             batch[k] = v.cuda(non_blocking=True)
-
-        # data_load_end = time.time()
-
-        # inp = (batch['inp'] - inp_sub) / inp_div
-        # forward_start = torch.cuda.Event(enable_timing=True)
-        # forward_end = torch.cuda.Event(enable_timing=True)
-        # forward_start.record()
-
         b , c , h , w = batch["img"].shape
-        pred,mask = model(batch["img"])
-        # loss 1:
-        # mask : [ b , 224*224 ]
-        # mask = mask.unsqueeze(-1).repeat(1, 1, 3)
+        pred = model(batch["img"])
+        target  = batch["gt"]
         
-        # mask = mask.reshape(shape=(b,h,w,c))
-        # mask = mask.permute(0,3,1,2)
-        # img_paste = batch["img"] * (1 - mask ) + pred * mask
-        # TODO:这里可能会导致正确部分的loss太多，冲淡了需要预测部分的loss，修改一下。
-        # loss = loss_fn(pred, batch["img"])
+        loss = loss_fn(pred , target)
 
-        # loss 2
-        # pred  batch : b 3 h w 
-        # mask : b 224*224
-        loss = (pred - batch["img"]) ** 2
-        loss = loss.permute(0,2,3,1) 
-        loss = loss.mean(dim=-1)  # [N, L], mean loss per pixel
-        loss = loss.reshape(b,h*w)
-        loss = (loss * mask).sum() / mask.sum()
-        # gt = (batch['gt'] - gt_sub) / gt_div 
-        
+        loss_value = loss.item()
+        if not math.isfinite(loss_value):
+            print("Loss is {}, stopping training".format(loss_value))
+            sys.exit(1)
 
-        # forward_end.record()
-        # torch.cuda.synchronize()
-        # forward_time = forward_start.elapsed_time(forward_end)
-        #psnr = metric_fn(pred, gt)
+
+        # loss = (pred - batch["img"]) ** 2
+        # loss = loss.permute(0,2,3,1) 
+        # loss = loss.mean(dim=-1)  # [N, L], mean loss per pixel
+        # loss = loss.reshape(b,h*w)
+        # loss = (loss * mask).sum() / mask.sum()
         
-        # tensorboard
-        #writer.add_scalars('loss', {'train': loss.item()}, (epoch-1)*iter_per_epoch + iteration)
-        #writer.add_scalars('psnr', {'train': psnr}, (epoch-1)*iter_per_epoch + iteration)
         iteration += 1
         
         train_loss.add(loss.item())
-        # backward_start = torch.cuda.Event(enable_timing=True)
-        # backward_end = torch.cuda.Event(enable_timing=True)
-        # backward_start.record()
-
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
-        # backward_end.record()
-        # torch.cuda.synchronize()
-        # backward_time = backward_start.elapsed_time(backward_end)
-
-        # print(f"For this batch : Data Load Time: {data_load_end - data_load_start:.4f}s, Forward Time: {forward_time:.4f}ms, Backward Time: {backward_time:.4f}ms")
         
         pred = None; loss = None
         pbar.set_description('train loss: {:.4f}, lr: {:.6f}'.format(train_loss.item(),optimizer.param_groups[0]['lr'] ))
-        # writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
-        # profiler.step()
-        # exit()
 
     return train_loss.item()
 
@@ -182,11 +186,6 @@ def main(config_, save_path):
         yaml.dump(config, f, sort_keys=False)
 
     train_loader, val_loader = make_data_loaders()
-    if config.get('data_norm') is None:
-        config['data_norm'] = {
-            'inp': {'sub': [0], 'div': [1]},
-            'gt': {'sub': [0], 'div': [1]}
-        }
 
     model, optimizer, epoch_start, lr_scheduler = prepare_training()
 

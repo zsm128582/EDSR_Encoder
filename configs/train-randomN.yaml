@@ -4,6 +4,7 @@ train_dataset:
     args:
       root_path: ./data/test
       repeat: 1
+      # first_k : 5000
       
   wrapper: 
     name: random-n-dataloader
@@ -57,13 +58,13 @@ model:
       name: edsr-baseline
       args:
         no_upsampling: true
-    width: 256
+    width: 224
     blocks: 16
 
 optimizer:
   name: adam
   args:
-    base_lr: 1.00e-03
+    lr: 1.00e-03
     #weight_decay: 1.e-5
 epoch_max: 30
 warmup_step_lr:
@@ -73,7 +74,7 @@ warmup_step_lr:
 #  milestones: [200, 400, 600, 800, 1000]
 #  gamma: 0.5
 
-
+base_lr : 1.00e-03
 # resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/_train-randomN/epoch-last.pth
 epoch_val: 10
 epoch_save: 10

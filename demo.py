@@ -74,9 +74,10 @@ def saveImage(result , name):
     predImage.save(name)
 
 if __name__ == '__main__':
-    model_path = "/home/zengshimao/code/Super-Resolution-Neural-Operator/save/_train-randomN/epoch-last.pth"
+    model_path = "/home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention-epoch40.pth"
     # input = "/home/zengshimao/code/Super-Resolution-Neural-Operator/data/test/ILSVRC2012_test_00000245.JPEG"
-    input = "/home/zengshimao/code/Super-Resolution-Neural-Operator/data/test/ILSVRC2012_test_00000023.JPEG"
+    input = "/home/zengshimao/code/Super-Resolution-Neural-Operator/data/task3/n02113978_2189.JPEG"
+    image_name = input.split('/')[-1]
     img = Image.open(input).convert('RGB')
     transform = build_transform(True)
     img = transform(img)
@@ -84,7 +85,7 @@ if __name__ == '__main__':
     img_width = img.shape[2]
     img_height = img.shape[1]
  
-    saveImage(img.numpy(),"/home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention/gt.png")
+    saveImage(img.numpy(), "/home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention/gt-"+image_name+".png")
     # result = img.numpy()
     # result = result.transpose(1,2,0)
     # result = (result * 255).astype(np.uint8)
@@ -120,14 +121,14 @@ if __name__ == '__main__':
 
     aftermask = aftermask.detach().cpu().numpy()
 
-    saveImage(aftermask[0] , "/home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention/aftermask.png")
+    saveImage(aftermask[0], "/home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention/aftermask-"+image_name+".png")
 
     result = pred.detach()
     result = result.cpu()
     result = result.numpy()
     result = result[0]
 
-    saveImage(result , "/home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention/pred.png")
+    saveImage(result, "/home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention/pred-"+image_name+".png")
 
 
 

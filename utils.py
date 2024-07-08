@@ -175,16 +175,13 @@ def compute_num_params(model, text=False):
         return tot
 
 
-def make_optimizer(param_list, config, load_sd=False):
-    optimizer_spec = config['optimizer']
+def make_optimizer(param_list, optimizer_spec , batchsize , base_lr , base_batchsize = 256, load_sd=False):
     Optimizer = {
         'sgd': SGD,
         'adam': Adam
     }[optimizer_spec['name']]
-    base_lr = optimizer_spec['args']['base_lr']
-    actral_lr = base_lr * config['train_dataset']['batch_size'] / 256 
+    actral_lr = base_lr * batchsize / base_batchsize
     optimizer_spec['args']['lr'] = actral_lr
-    del optimizer_spec['args']['base_lr']
     optimizer = Optimizer(param_list, **optimizer_spec['args'])
     if load_sd:
         optimizer.load_state_dict(optimizer_spec['sd'])
