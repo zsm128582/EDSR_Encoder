@@ -32,7 +32,6 @@ class ImageFolder(Dataset):
             self.files.append(file)
 
 
-
     def __len__(self):
         return len(self.files) * self.repeat
 

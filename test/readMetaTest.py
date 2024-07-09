@@ -1,10 +1,11 @@
 import scipy.io
 
 meta = scipy.io.loadmat('/home/zengshimao/code/Super-Resolution-Neural-Operator/test/meta.mat')
-print(meta.keys())
+# print(meta.keys())
 synsets = meta['synsets']
-print(synsets)
-first_synset = synsets[0][0]
+print(len(synsets))
+first_synset = synsets[170][0]
+print(first_synset)
 print(f"ILSVRC2012_ID: {first_synset[0][0]}")
 print(f"WNID: {first_synset[1][0]}")
 print(f"words: {first_synset[2][0]}")

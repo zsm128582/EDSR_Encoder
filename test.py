@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from timm.utils import accuracy
 
 import datasets
 import models
@@ -117,6 +118,25 @@ def eval_psnr(loader, model, data_norm=None, eval_type=None, eval_bsize=None, sc
 
     return val_res.item()
 
+
+def eval_finetune(loader , model):
+    model.eval()
+    pbar = tqdm(loader, leave=False, desc='val') 
+    loss_Fn = nn.CrossEntropyLoss()
+    val_res = utils.Averager()   
+    for batch in pbar :
+        for k,v in batch.items():
+            batch[k] = v.cuda(non_blocking = True)
+        with torch.cuda.amp.autocast():
+            pred  = model(batch["img"])
+            res = loss_Fn(pred , batch['gt'])
+            
+        val_res.add(res.item(),batch["img"].shape[0])
+        acc1,acc5 = accuracy(pred,batch['gt'],topk=(1,5))
+        print("acc1:",acc1,"acc5:",acc5)
+        if False:
+            pbar.set_description('val {:.4f}'.format(val_res.item()))
+    return val_res.item()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

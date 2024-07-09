@@ -8,89 +8,64 @@ from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
 
-def unshuffle(x, ids_restore):
-    # x应该是什么样的？[B，Lm,C]?
-    # ids呢？[B , L]
-    # 我才masktokens现在变成了b , L-Lm , dim
-    mask_token = nn.Parameter(torch.zeros(1, 1, 3))
-    mask_tokens = mask_token.repeat(
-        x.shape[0], ids_restore.shape[1] - x.shape[1], 1
-    )
-    # 然后现在x_变成了L
-    x_ = torch.cat([x, mask_tokens], dim=1)  # no cls token
-    x_ = torch.gather(
-        x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2])
-    )  # unshuffle
+def random_masking(x, mask_ratio):
 
-    return x_
+    h, w, c = x.shape
+    noise = torch.rand(h, w, device=x.device)
+    mask = (noise >= mask_ratio).float()
+    mask = mask.unsqueeze(-1).repeat(1, 1, c)
+    masked_img = img * mask
+    return masked_img, mask
 
-def random_masking( x, mask_ratio):
-    """
-    Perform per-sample random masking by per-sample shuffling.
-    Per-sample shuffling is done by argsort random noise.
-    x: [N, L, D], sequence
-    """
-    N, L, D = x.shape  # batch, length, dim
-    len_keep = int(L * (1 - mask_ratio))
-
-    noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
-
-    # sort noise for each sample
-    # argsort 返回的是索引值
-    ids_shuffle = torch.argsort(
-        noise, dim=1
-    )  # ascend: small is keep, large is remove
-    ids_restore = torch.argsort(ids_shuffle, dim=1)
-
-    # keep the first subset
-    ids_keep = ids_shuffle[:, :len_keep]
-    x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
-
-    # generate the binary mask: 0 is keep, 1 is remove
-    mask = torch.ones([N, L], device=x.device)
-    mask[:, :len_keep] = 0
-    # unshuffle to get the binary mask
-    mask = torch.gather(mask, dim=1, index=ids_restore)
-
-    return x_masked, mask, ids_restore
 
 img_path = "/home/zengshimao/code/Super-Resolution-Neural-Operator/data/task3/n02085620_275.JPEG"
-img = Image.open(img_path).convert('RGB')
-img = torch.tensor(np.array(img))
-img = img.reshape(1,-1,3)
-x, mask, id_restore = random_masking(img.unsqueeze(0), 0.75)
+img = Image.open(img_path).convert("RGB")
+img = torch.tensor(np.array(img)) / 255
+
+masked_img, mask = random_masking(img, 0.90)
+h, w, c = img.shape
+plt.imsave("masked_img1.png", masked_img.numpy())
+
+# image_array = Image.fromarray(masked_img.numpy().transpose(1,2,0))
+# image_array.save("test.png")
+
+# bl means batch like
+# bl_img : b , h , w ,c
+#  bl mask :b , h , w , c
+bl_img = masked_img.unsqueeze(0)
+bl_mask = mask.unsqueeze(0)
+bl_img = bl_img.permute(0,3,1,2)
+
+N ,C,H,W = bl_img.shape
+grid = torch.zeros(N,h,w,2 , device= bl_img.device)
+x = torch.linspace(-1, 1, W, device=bl_img.device)
+y = torch.linspace(-1, 1, H, device=bl_img.device)
+x_grid, y_grid = torch.meshgrid(x, y)
+grid[:, :, :, 0] = x_grid.t()
+grid[:, :, :, 1] = y_grid.t()
+interpolated_pixels = F.grid_sample(bl_img, grid, mode='bilinear', padding_mode='zeros', align_corners=False)
+
+final_imgs = bl_img.permute(0,2,3,1) + interpolated_pixels.permute(0,2,3,1) *(1- mask)
+
+plt.imsave("grid_sample.png",final_imgs[0].numpy())
 
 
-restoreImage = unshuffle(x,id_restore)
+# #grid sample 插值方法
 
+# bl_img = bl_img.permute(0,3,1,2)
+# mask 
 
-restoreImage = restoreImage.view(1, 224,224, 3)
+# # 普通线性插值的方法
 
-image_array = Image.fromarray(restoreImage[0])
-image_array.save("test.png")
+# low_res_known_pixels = F.interpolate(
+#     bl_img.permute(0, 3, 1, 2), scale_factor=0.3, mode="bilinear"
+# )
+# interpolated_pixels = F.interpolate(low_res_known_pixels, size=(h, w), mode="bilinear")
 
+# plt.imsave("fullintepolate.png",interpolated_pixels.permute(0,2,3,1)[0].numpy())
+# # mask为1代表保留
+# # inte: b , c , h w
+# final_imgs = bl_img + interpolated_pixels.permute(0, 2, 3, 1) * (1 - mask)
 
-
-
-
-low_res_known_pixels = F.interpolate(
-    restoreImage.permute(0, 3, 1, 2), scale_factor=0.5, mode="bilinear"
-)
-low_res_mask = F.interpolate(
-    (1 - mask).unsqueeze(1).float(), scale_factor=0.5, mode="bilinear"
-)
-
-interpolated_pixels = F.interpolate(
-    low_res_known_pixels, size=(self.h, self.w), mode="bilinear"
-)
-interpolated_mask = F.interpolate(
-    low_res_mask, size=(self.h, self.w), mode="bilinear"
-)
-
-interpolated_mask = interpolated_mask.expand(-1, c, -1, -1)
-# 这里的mask使用插值后的mask？还是插值后的mask？
-
-final_imgs = (
-    restoreImage.permute(0, 3, 1, 2)
-    + interpolated_pixels * interpolated_mask
-)
+# res = final_imgs[0].numpy()
+# plt.imsave("interpolate_img.png", res)

@@ -39,7 +39,8 @@ class ValidationWrapper(Dataset):
         self.augmentConfigs = augmentConfig
         self.transform = self.build_transform(istrain)
         self.validationLables = read_validation_labels("/home/zengshimao/code/Super-Resolution-Neural-Operator/test/ILSVRC2012_validation_ground_truth.txt")
-
+        
+        self.validationLables = self.validationLables - 1 
 
 
     def __len__(self):
@@ -66,14 +67,14 @@ class ValidationWrapper(Dataset):
 
         return {
             'img': img,
-            'gt' : self.validationLables[sequence_number]
+            'gt' : self.validationLables[sequence_number-1]
         }
 
     def build_transform(self ,is_train):
         mean = IMAGENET_DEFAULT_MEAN
         std = IMAGENET_DEFAULT_STD
         # train transform
-        if is_train:
+        if False:
             # this should always dispatch to transforms_imagenet_train
             transform = create_transform(
                 input_size=self.augmentConfigs["input_size"],

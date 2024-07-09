@@ -9,9 +9,8 @@ import models
 from models import register
 from typing import Optional
 from models.selfAttention import SelfAttention
-from models.ffn_layer import FFNLayer
+from models.ffn_layer import FFNLayer  
 from models.pos_embed import get_2d_sincos_pos_embed
-from timm.models.vision_transformer import PatchEmbed, Block
 from functools import partial
 
 # from positionalEmbedding import NestedTensor
@@ -46,9 +45,7 @@ class Classifier(nn.Module):
         self.head = nn.Linear(hidden_dim, num_classes)
 
     def forwardEncoder(self, img):
-
         x = self.encoder(img)
-
         # 在这里将x变成[b,hw,c]
         x = x.permute(0, 2, 3, 1)
         x = x.reshape(x.size(0), -1, x.size(3))
@@ -60,13 +57,8 @@ class Classifier(nn.Module):
         x = self.sa2(x)
         return x
 
-    def forwardDecoder(self, img, id_restore, mask):
-
-        return self.decoder(img, id_restore, mask)
 
     def forward(self, img):
-        h = img.shape[2]
-        w = img.shape[3]
         x= self.forwardEncoder(img)
         x = self.norm(x)
         cls_token = x[:,0]

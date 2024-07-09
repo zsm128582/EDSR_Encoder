@@ -71,6 +71,9 @@ def test():
     print(msg)
     
     trunc_normal_(model.head.weight, std=2e-5)
+
+
+    
     # 为什么这里只是初始化了一下head 的权重呢？
     pass
 

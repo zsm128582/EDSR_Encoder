@@ -16,7 +16,7 @@ import math
 import datasets
 import models
 import utils
-from test import eval_randomN
+from test import eval_finetune
 from scheduler import GradualWarmupScheduler
 from datasets.validationWrapper import ValidationWrapper
 from datasets.image_folder import ImageFolder
@@ -156,14 +156,7 @@ def train(train_loader, model, optimizer, \
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
             sys.exit(1)
-
-
-        # loss = (pred - batch["img"]) ** 2
-        # loss = loss.permute(0,2,3,1) 
-        # loss = loss.mean(dim=-1)  # [N, L], mean loss per pixel
-        # loss = loss.reshape(b,h*w)
-        # loss = (loss * mask).sum() / mask.sum()
-        
+            
         iteration += 1
         
         train_loss.add(loss.item())
@@ -241,7 +234,7 @@ def main(config_, save_path):
                 model_ = model.module
             else:
                 model_ = model
-            val_res = eval_randomN(val_loader,model)
+            val_res = eval_finetune(val_loader,model)
 
             log_info.append('val: psnr={:.4f}'.format(val_res))
 #             writer.add_scalars('psnr', {'val': val_res}, epoch)

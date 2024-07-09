@@ -46,8 +46,8 @@ base_lr : 1.00e-03
 #  gamma: 0.5
 
 
-# resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/_train-randomN/epoch-last.pth
-finetune : /home/zengshimao/code/Super-Resolution-Neural-Operator/result/epoch-last.pth
+resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/finetune_resume.pth
+# finetune : /home/zengshimao/code/Super-Resolution-Neural-Operator/result/epoch-last.pth
 epoch_val: 10
 epoch_save: 10
 
