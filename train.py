@@ -47,9 +47,6 @@ def prepare_training():
         model = models.make(sv_file['model'], load_sd=True).cuda()
         optimizer = utils.make_optimizer(
             model.parameters(), sv_file['optimizer'],batchsize=config['train_dataset']['batch_size'] , base_lr=config['base_lr'], load_sd=True)
-        base_lr = config['optimizer']['args']['base_lr']
-        actral_lr = base_lr * config['train_dataset']['batch_size'] / 256 
-        optimizer.param_groups[0]['lr'] = actral_lr
         epoch_start = sv_file['epoch'] + 1
         if config.get('multi_step_lr') is None:
             cosine = CosineAnnealingLR(optimizer, config['epoch_max']-config['warmup_step_lr']['total_epoch'])

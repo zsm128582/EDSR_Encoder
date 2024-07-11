@@ -46,7 +46,6 @@ val_dataset:
 eval_type: div2k-2
 eval_bsize: 500
 
-
 # data_norm:
 #   inp: {sub: [0.5], div: [0.5]}
 #   gt: {sub: [0.5], div: [0.5]}
@@ -64,7 +63,7 @@ model:
 optimizer:
   name: adam
   args:
-    lr: 1.00e-03
+    lr: 1.00e-03 
     #weight_decay: 1.e-5
 epoch_max: 30
 warmup_step_lr:

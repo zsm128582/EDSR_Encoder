@@ -143,7 +143,6 @@ def train(train_loader, model, optimizer, \
 
 
     for batch in pbar:        
-
         for k,v in batch.items():
             batch[k] = v.cuda(non_blocking=True)
         b , c , h , w = batch["img"].shape
@@ -156,7 +155,7 @@ def train(train_loader, model, optimizer, \
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
             sys.exit(1)
-            
+
         iteration += 1
         
         train_loss.add(loss.item())

@@ -1,14 +1,17 @@
-augmentConfigs : 
-        input_size : 256
-        color_jitter : None
-        auto_augment : rand-m9-mstd0.5-inc1
-        # RE 的意思是 random eraser
-        reprob : 0
-        remode : pixel
-        recount : 1
 
-train_batchsize : 32
-val_batchsize : 16
+augmentConfigs : 
+  input_size : 256
+  color_jitter : None
+  auto_augment : rand-m9-mstd0.5-inc1
+  # RE 的意思是 random eraser
+  reprob : 0
+  remode : pixel
+  recount : 1
+
+train_rootPath : /data/validation
+validation_rootPath : /data/validation
+train_batchsize : 24
+val_batchsize : 16 
 
 
 eval_type: div2k-2
@@ -46,7 +49,7 @@ base_lr : 1.00e-03
 #  gamma: 0.5
 
 
-resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/finetune_resume.pth
+resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/finetune-epoch8-loss5.89/finetune-epoch8.pth
 # finetune : /home/zengshimao/code/Super-Resolution-Neural-Operator/result/epoch-last.pth
 epoch_val: 10
 epoch_save: 10

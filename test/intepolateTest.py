@@ -43,6 +43,7 @@ y = torch.linspace(-1, 1, H, device=bl_img.device)
 x_grid, y_grid = torch.meshgrid(x, y)
 grid[:, :, :, 0] = x_grid.t()
 grid[:, :, :, 1] = y_grid.t()
+
 interpolated_pixels = F.grid_sample(bl_img, grid, mode='bilinear', padding_mode='zeros', align_corners=False)
 
 final_imgs = bl_img.permute(0,2,3,1) + interpolated_pixels.permute(0,2,3,1) *(1- mask)

@@ -46,7 +46,6 @@ class Classifier(nn.Module):
 
     def forwardEncoder(self, img):
         x = self.encoder(img)
-        # 在这里将x变成[b,hw,c]
         x = x.permute(0, 2, 3, 1)
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x + self.pos_embed[:,1:,:]
@@ -59,9 +58,12 @@ class Classifier(nn.Module):
 
 
     def forward(self, img):
+        224*224,64
         x= self.forwardEncoder(img)
+
         x = self.norm(x)
         cls_token = x[:,0]
+        # 64 - > 1000 
         pred = self.head(cls_token)
         return pred
 
