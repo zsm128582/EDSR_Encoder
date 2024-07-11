@@ -12,7 +12,7 @@ train_dataset:
       point_num: 8000
       augment: True
       istrain: True
-      augmentConfigs : 
+      augmentConfigs :   
         input_size : 224
         color_jitter : None
         auto_augment : rand-m9-mstd0.5-inc1

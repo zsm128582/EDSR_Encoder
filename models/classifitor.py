@@ -40,7 +40,9 @@ class Classifier(nn.Module):
             input_dim=hidden_dim, hidden_dim=hidden_dim * 2, output_dim=3, num_layers=3
         )
 
+
         self.norm = nn.LayerNorm(hidden_dim,eps=1e-6)
+        
 
         self.head = nn.Linear(hidden_dim, num_classes)
 
@@ -58,13 +60,14 @@ class Classifier(nn.Module):
 
 
     def forward(self, img):
-        224*224,64
         x= self.forwardEncoder(img)
-
+        x = x[:,1:,:].mean(dim=1)
         x = self.norm(x)
-        cls_token = x[:,0]
+        # x = x[:,0]
+        # x = self.norm(x)
+        # cls_token = x[:,0]
         # 64 - > 1000 
-        pred = self.head(cls_token)
+        pred = self.head(x)
         return pred
 
 
