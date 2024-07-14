@@ -28,7 +28,7 @@ class Classifier(nn.Module):
 
         self.cls_token = nn.Parameter(torch.zeros(1,1,hidden_dim))
         torch.nn.init.normal_(self.cls_token, std=.02)
-
+ 
         self.pos_embed = nn.Parameter(
             torch.zeros(1, self.width * width + 1, hidden_dim), requires_grad=False
         )
@@ -47,13 +47,16 @@ class Classifier(nn.Module):
         self.head = nn.Linear(hidden_dim, num_classes)
 
     def forwardEncoder(self, img):
+        # edsr
         x = self.encoder(img)
+        # ramdon masking
         x = x.permute(0, 2, 3, 1)
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x + self.pos_embed[:,1:,:]
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
+
         x = self.sa1(x)
         x = self.sa2(x)
         return x
@@ -61,6 +64,9 @@ class Classifier(nn.Module):
 
     def forward(self, img):
         x= self.forwardEncoder(img)
+        if(torch.isnan(x).any()):
+            print("nan value detect after encoder layer")
+            exit(1)
         x = x[:,1:,:].mean(dim=1)
         x = self.norm(x)
         # x = x[:,0]

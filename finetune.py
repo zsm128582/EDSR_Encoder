@@ -92,7 +92,7 @@ def prepare_training():
         for e in range(1,epoch_start):
             lr_scheduler.step(e)
             #lr_scheduler.step()
-        print(epoch_start,optimizer.param_groups[0]['lr'])
+        print("epoch start from: ",epoch_start,"lr: ",optimizer.param_groups[0]['lr'])
     elif(config.get('finetune') is not None) and os.path.exists(config.get('finetune')):
         
         encoder_spec = {}
@@ -117,7 +117,7 @@ def prepare_training():
         trunc_normal_(model.head.weight, std=2e-5)
 
         optimizer = utils.make_optimizer(
-            model.parameters(), config['optimizer'],batchsize=config['train_batchsize'] , base_lr=config.get('base_lr'))
+            model.parameters(), config['optim`izer'],batchsize=config['train_batchsize'] , base_lr=config.get('base_lr'))
         epoch_start = 1
         if config.get('multi_step_lr') is None:
             cosine = CosineAnnealingLR(optimizer, config['epoch_max']-config['warmup_step_lr']['total_epoch'])
@@ -233,7 +233,7 @@ def main(config_, save_path):
                 model_ = model.module
             else:
                 model_ = model
-            val_res = eval_finetune(val_loader,model)
+            val_res = eval_finetune(val_loader,model_)
 
             log_info.append('val: psnr={:.4f}'.format(val_res))
 #             writer.add_scalars('psnr', {'val': val_res}, epoch)

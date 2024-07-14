@@ -49,8 +49,8 @@ base_lr : 1.00e-03
 #  gamma: 0.5
 
 
-resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/finetune-epoch8-loss5.89/finetune-epoch8.pth
-# finetune : /home/zengshimao/code/Super-Resolution-Neural-Operator/result/epoch-last.pth
-epoch_val: 10
-epoch_save: 10
+#resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/finetune-debug-epoch2.pth
+finetune : /home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention-epoch40.pth
+epoch_val: 1
+epoch_save: 1
 

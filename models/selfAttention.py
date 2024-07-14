@@ -90,12 +90,15 @@ class SelfAttention(nn.Module):
         
         # attention
         x_, _ = self.sa(query=x , key=x , value=x)
+        
+        if(torch.isnan(x_).any()):
+            print("nan value detect after galerkin  self attention ")
 
-        x = x + self.dropout(x_)
+        x_ = x /2  + self.dropout(x_) /2
 
-        x_ = self.ffn(x)
+        x_ = self.ffn(x_)
 
-        x = x + self.dropout(x_)
+        x = x / 2 + self.dropout(x_) / 2
         # x = self.layerNorm(x)
 
         # # transpose x back to [ b , c , h  , w]

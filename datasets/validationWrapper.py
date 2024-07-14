@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
 @register('validation_wrapper')
 class ValidationWrapper(Dataset):
-    def __init__(self, dataset , augmentConfig, point_num = 300 , augment = False , istrain = True):
+    def __init__(self, dataset , augmentConfig=None, point_num = 300 , augment = False , istrain = True):
         self.dataset = dataset
         self.point_num = point_num
         self.augment = augment
