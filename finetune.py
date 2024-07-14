@@ -117,7 +117,7 @@ def prepare_training():
         trunc_normal_(model.head.weight, std=2e-5)
 
         optimizer = utils.make_optimizer(
-            model.parameters(), config['optim`izer'],batchsize=config['train_batchsize'] , base_lr=config.get('base_lr'))
+            model.parameters(), config['optimizer'],batchsize=config['train_batchsize'] , base_lr=config.get('base_lr'))
         epoch_start = 1
         if config.get('multi_step_lr') is None:
             cosine = CosineAnnealingLR(optimizer, config['epoch_max']-config['warmup_step_lr']['total_epoch'])
