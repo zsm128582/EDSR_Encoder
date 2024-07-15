@@ -57,13 +57,13 @@ model:
       name: edsr-baseline
       args:
         no_upsampling: true
-    width: 256
+    width: 224
     blocks: 16
 
 optimizer:
   name: adam
   args:
-    base_lr: 1.00e-03
+    lr: 1.00e-03
     #weight_decay: 1.e-5
 epoch_max: 50
 warmup_step_lr:
@@ -73,8 +73,8 @@ warmup_step_lr:
 #  milestones: [200, 400, 600, 800, 1000]
 #  gamma: 0.5
 
-
-resume: /home/u2023110769/Code/EDSR_Encoder/result/epoch-last.pth
+base_lr : 1.00e-03
+# resume: /home/u2023110769/Code/EDSR_Encoder/result/epoch-last.pth
 epoch_val: 10
 epoch_save: 10
 
