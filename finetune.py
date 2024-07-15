@@ -18,9 +18,10 @@ import models
 import utils
 from test import eval_finetune
 from scheduler import GradualWarmupScheduler
-from datasets.validationWrapper import ValidationWrapper
+from datasets.validationWrapper import ValidationWrapper , read_validation_labels
 from datasets.image_folder import ImageFolder
 from timm.models.layers import trunc_normal_
+
 
 
 def make_data_loader(spec, tag=''):
@@ -41,7 +42,7 @@ def make_data_loader(spec, tag=''):
 
 def make_data_loaders():
     # TODO:change a root path
-    dataset = ValidationWrapper(ImageFolder("/home/zengshimao/code/Super-Resolution-Neural-Operator/data/validation"),augmentConfig=config['augmentConfigs'],augment=True)
+    dataset = ValidationWrapper(ImageFolder(config.get('train_rootPath')),lables=read_validation_labels(config.get('lable_path')),augmentConfig=config['augmentConfigs'],augment=True)
     train_size = int(0.8 * len ( dataset))
     test_size = len(dataset) - train_size
     train_dataset , test_dataset = random_split(dataset , [train_size , test_size])

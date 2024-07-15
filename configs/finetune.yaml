@@ -8,8 +8,9 @@ augmentConfigs :
   remode : pixel
   recount : 1
 
-train_rootPath : /data/validation
-validation_rootPath : /data/validation
+train_rootPath : /home/zengshimao/code/Super-Resolution-Neural-Operator/data/validation
+validation_rootPath : /home/zengshimao/code/Super-Resolution-Neural-Operator/data/validation
+lable_path : /home/zengshimao/code/Super-Resolution-Neural-Operator/test/ILSVRC2012_validation_ground_truth.txt
 train_batchsize : 24
 val_batchsize : 16 
 

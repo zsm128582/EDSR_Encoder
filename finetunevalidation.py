@@ -3,7 +3,7 @@ from tqdm import tqdm
 from timm.utils import accuracy
 import torch.nn as nn
 from models.classifitor import Classifier
-from datasets.validationWrapper import ValidationWrapper
+from datasets.validationWrapper import ValidationWrapper,read_validation_labels
 from datasets.image_folder import ImageFolder
 from torch.utils.data import DataLoader 
 
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     msg = model.load_state_dict(checkpoint['model']['sd'])
     print(msg)
     model = model.cuda()
-    dataset = ValidationWrapper(ImageFolder("/home/zengshimao/code/Super-Resolution-Neural-Operator/data/validation",first_k=10000),augmentConfig=augmentConfigs,augment=True)
+    dataset = ValidationWrapper(ImageFolder("/home/zengshimao/code/Super-Resolution-Neural-Operator/data/validation",first_k=10000),lables=read_validation_labels('/home/zengshimao/code/Super-Resolution-Neural-Operator/test/ILSVRC2012_validation_ground_truth.txt'),augmentConfig=augmentConfigs,augment=True)
     dataloader = DataLoader(dataset, batch_size=8,
         shuffle=True, num_workers=8, pin_memory=True,persistent_workers=True)
     # paths = []
