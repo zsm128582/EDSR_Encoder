@@ -127,7 +127,7 @@ def eval_finetune(loader , model):
     for batch in pbar :
         for k,v in batch.items():
             batch[k] = v.cuda(non_blocking = True)
-        with torch.cuda.amp.autocast():
+        with torch.no_grad():
             pred  = model(batch["img"])
             res = loss_Fn(pred , batch['gt'])
             

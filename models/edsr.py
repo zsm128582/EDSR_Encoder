@@ -209,7 +209,7 @@ class EDSR(nn.Module):
         self.head = nn.Sequential(*m_head)
         self.body = nn.Sequential(*m_body)
 
-        print(self.body)
+        # print(self.body)
 
         if args.no_upsampling:
             self.out_dim = n_feats

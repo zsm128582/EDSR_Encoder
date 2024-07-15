@@ -18,9 +18,10 @@ import models
 import utils
 from test import eval_finetune
 from scheduler import GradualWarmupScheduler
-from datasets.validationWrapper import ValidationWrapper
+from datasets.validationWrapper import ValidationWrapper , read_validation_labels
 from datasets.image_folder import ImageFolder
 from timm.models.layers import trunc_normal_
+
 
 
 def make_data_loader(spec, tag=''):
@@ -41,7 +42,7 @@ def make_data_loader(spec, tag=''):
 
 def make_data_loaders():
     # TODO:change a root path
-    dataset = ValidationWrapper(ImageFolder("/home/zengshimao/code/Super-Resolution-Neural-Operator/data/validation"),augmentConfig=config['augmentConfigs'],augment=True)
+    dataset = ValidationWrapper(ImageFolder(config.get('train_rootPath')),lables=read_validation_labels(config.get('lable_path')),augmentConfig=config['augmentConfigs'],augment=True)
     train_size = int(0.8 * len ( dataset))
     test_size = len(dataset) - train_size
     train_dataset , test_dataset = random_split(dataset , [train_size , test_size])
@@ -92,7 +93,7 @@ def prepare_training():
         for e in range(1,epoch_start):
             lr_scheduler.step(e)
             #lr_scheduler.step()
-        print(epoch_start,optimizer.param_groups[0]['lr'])
+        print("epoch start from: ",epoch_start,"lr: ",optimizer.param_groups[0]['lr'])
     elif(config.get('finetune') is not None) and os.path.exists(config.get('finetune')):
         
         encoder_spec = {}
@@ -233,7 +234,7 @@ def main(config_, save_path):
                 model_ = model.module
             else:
                 model_ = model
-            val_res = eval_finetune(val_loader,model)
+            val_res = eval_finetune(val_loader,model_)
 
             log_info.append('val: psnr={:.4f}'.format(val_res))
 #             writer.add_scalars('psnr', {'val': val_res}, epoch)

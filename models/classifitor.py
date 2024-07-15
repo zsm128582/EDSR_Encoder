@@ -18,24 +18,33 @@ from functools import partial
 
 @register("random_N_Classifitor")
 class Classifier(nn.Module):
-    def __init__(self, encoder_spec, width=256, blocks=16 , num_classes = 1000) -> None:
+    def __init__(self, encoder_spec, width=256, blocks=16 , num_classes = 1000 , has_cls_token = False) -> None:
         super().__init__()
         hidden_dim = 64
         self.width = width
         self.encoder = models.make(encoder_spec)
         self.sa1 = SelfAttention(n_feats=hidden_dim)
         self.sa2 = SelfAttention(n_feats=hidden_dim)
-
-        self.cls_token = nn.Parameter(torch.zeros(1,1,hidden_dim))
-        torch.nn.init.normal_(self.cls_token, std=.02)
-
-        self.pos_embed = nn.Parameter(
-            torch.zeros(1, self.width * width + 1, hidden_dim), requires_grad=False
-        )
-        pos_embed = get_2d_sincos_pos_embed(
-            self.pos_embed.shape[-1], self.width, cls_token=True
-        )
-        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        self.has_cls_token = has_cls_token
+        if self.has_cls_token:
+            self.cls_token = nn.Parameter(torch.zeros(1,1,hidden_dim))
+            torch.nn.init.normal_(self.cls_token, std=.02)
+            self.pos_embed = nn.Parameter(
+                torch.zeros(1, self.width * width + 1, hidden_dim), requires_grad=False
+            )
+            pos_embed = get_2d_sincos_pos_embed(
+                self.pos_embed.shape[-1], self.width, cls_token=True
+            )
+            self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        else:
+            self.pos_embed = nn.Parameter(
+                torch.zeros(1, self.width * width, hidden_dim), requires_grad=False
+            )
+            pos_embed = get_2d_sincos_pos_embed(
+                self.pos_embed.shape[-1], self.width, cls_token=False
+            )
+            self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        
         self.mlp = MLP(
             input_dim=hidden_dim, hidden_dim=hidden_dim * 2, output_dim=3, num_layers=3
         )
@@ -47,13 +56,19 @@ class Classifier(nn.Module):
         self.head = nn.Linear(hidden_dim, num_classes)
 
     def forwardEncoder(self, img):
+        # edsr
         x = self.encoder(img)
+        # ramdon masking
         x = x.permute(0, 2, 3, 1)
         x = x.reshape(x.size(0), -1, x.size(3))
-        x = x + self.pos_embed[:,1:,:]
-        cls_token = self.cls_token + self.pos_embed[:, :1, :]
-        cls_tokens = cls_token.expand(x.shape[0], -1, -1)
-        x = torch.cat((cls_tokens, x), dim=1)
+        if self.has_cls_token:
+            x = x + self.pos_embed[:,1:,:]
+            cls_token = self.cls_token + self.pos_embed[:, :1, :]
+            cls_tokens = cls_token.expand(x.shape[0], -1, -1)
+            x = torch.cat((cls_tokens, x), dim=1)
+        else:
+            x = x + self.pos_embed
+
         x = self.sa1(x)
         x = self.sa2(x)
         return x
@@ -61,7 +76,13 @@ class Classifier(nn.Module):
 
     def forward(self, img):
         x= self.forwardEncoder(img)
-        x = x[:,1:,:].mean(dim=1)
+        if(torch.isnan(x).any()):
+            print("nan value detect after encoder layer")
+            exit(1)
+        if self.has_cls_token:
+            x = x[:,1:,:].mean(dim=1)
+        else:
+            x = x.mean(dim=1)
         x = self.norm(x)
         # x = x[:,0]
         # x = self.norm(x)

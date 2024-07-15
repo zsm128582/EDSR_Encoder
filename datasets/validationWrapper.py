@@ -32,13 +32,13 @@ if __name__ == "__main__":
 
 @register('validation_wrapper')
 class ValidationWrapper(Dataset):
-    def __init__(self, dataset , augmentConfig, point_num = 300 , augment = False , istrain = True):
+    def __init__(self, dataset , lables , augmentConfig=None, point_num = 300 , augment = False , istrain = True):
         self.dataset = dataset
         self.point_num = point_num
         self.augment = augment
         self.augmentConfigs = augmentConfig
         self.transform = self.build_transform(istrain)
-        self.validationLables = read_validation_labels("/home/zengshimao/code/Super-Resolution-Neural-Operator/test/ILSVRC2012_validation_ground_truth.txt")
+        self.validationLables = lables
         
         self.validationLables = self.validationLables - 1 
 
