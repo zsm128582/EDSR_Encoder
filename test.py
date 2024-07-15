@@ -124,6 +124,8 @@ def eval_finetune(loader , model):
     pbar = tqdm(loader, leave=False, desc='val') 
     loss_Fn = nn.CrossEntropyLoss()
     val_res = utils.Averager()   
+    acc1_total = 0.
+    acc5_total = 0.
     for batch in pbar :
         for k,v in batch.items():
             batch[k] = v.cuda(non_blocking = True)
@@ -133,9 +135,15 @@ def eval_finetune(loader , model):
             
         val_res.add(res.item(),batch["img"].shape[0])
         acc1,acc5 = accuracy(pred,batch['gt'],topk=(1,5))
-        print("acc1:",acc1,"acc5:",acc5)
+        acc1_total += ( acc1 * batch["img"].shape[0] / 100)
+        acc5_total += ( acc5 * batch["img"].shape[0] / 100)
+        # print("acc1:",acc1,"acc5:",acc5)
         if False:
             pbar.set_description('val {:.4f}'.format(val_res.item()))
+        
+    acc1_total /= len(loader.dataset)
+    acc5_total /= len(loader.dataset)
+    print("acc1",acc1_total ,"acc5:", acc5_total)
     return val_res.item()
 
 if __name__ == '__main__':

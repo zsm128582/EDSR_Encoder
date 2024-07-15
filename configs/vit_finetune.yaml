@@ -11,8 +11,8 @@ augmentConfigs :
 train_rootPath : /home/zengshimao/code/Super-Resolution-Neural-Operator/data/validation
 validation_rootPath : /home/zengshimao/code/Super-Resolution-Neural-Operator/data/validation
 lable_path : /home/zengshimao/code/Super-Resolution-Neural-Operator/test/ILSVRC2012_validation_ground_truth.txt
-train_batchsize : 4
-val_batchsize : 16 
+train_batchsize : 16
+val_batchsize : 16
 
 
 eval_type: div2k-2
@@ -39,6 +39,7 @@ optimizer:
   args:
     lr: 1.00e-03 #不用管，后面会替换
     #weight_decay: 1.e-5
+epoch_start : 1
 epoch_max: 30
 warmup_step_lr:
   multiplier: 1
@@ -51,7 +52,7 @@ base_lr : 1.00e-03
 
 
 #resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/finetune-debug-epoch2.pth
-finetune : /home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention-epoch40.pth
+finetune : /home/zengshimao/code/Super-Resolution-Neural-Operator/result/mae_pretrain_vit_base.pth
 epoch_val: 1
 epoch_save: 1
 
