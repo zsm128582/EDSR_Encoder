@@ -20,28 +20,35 @@ from timm.models.vision_transformer import PatchEmbed, Block
 
 @register("random_N_encoder")
 class myEncoder(nn.Module):
-    def __init__(self, encoder_spec, width=256, blocks=16) -> None:
+    def __init__(self, encoder_spec, width=256, blocks=16 , embed_dim = 128 , has_clstoken = False) -> None:
         super().__init__()
         self.width = width
-        hidden_dim = 64
+        hidden_dim = embed_dim
         self.encoder = models.make(encoder_spec)
         self.sa1 = SelfAttention(n_feats=hidden_dim)
         self.sa2 = SelfAttention(n_feats=hidden_dim)
+        self.has_clstoken = has_clstoken
 
-        self.cls_token = nn.Parameter(torch.zeros(1,1,hidden_dim))
-        torch.nn.init.normal_(self.cls_token, std=.02)
+        if self.has_clstoken:
+            self.cls_token = nn.Parameter(torch.zeros(1,1,hidden_dim))
+            torch.nn.init.normal_(self.cls_token, std=.02)
 
-        # TODO:这里的224不要写死
-        self.pos_embed = nn.Parameter(
-            torch.zeros(1, self.width ** 2 + 1, hidden_dim), requires_grad=False
-        )
-        pos_embed = get_2d_sincos_pos_embed(
-            self.pos_embed.shape[-1], self.width, cls_token=True
-        )
-        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
-        self.mlp = MLP(
-            input_dim=hidden_dim, hidden_dim=hidden_dim * 2, output_dim=3, num_layers=3
-        )
+        if self.has_clstoken:
+            self.pos_embed = nn.Parameter(
+                torch.zeros(1, self.width ** 2 + 1, hidden_dim), requires_grad=False
+            )
+            pos_embed = get_2d_sincos_pos_embed(
+                self.pos_embed.shape[-1], self.width, cls_token=True
+            )
+            self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        else:
+            self.pos_embed = nn.Parameter(
+                torch.zeros(1, self.width ** 2, hidden_dim), requires_grad=False
+            )
+            pos_embed = get_2d_sincos_pos_embed(
+                self.pos_embed.shape[-1], self.width, cls_token=False
+            )
+            self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
 
         self.decoder = myDecoder(attentionBlockNum=4, embed_dim=hidden_dim)
 
@@ -89,13 +96,17 @@ class myEncoder(nn.Module):
         x = x.permute(0, 2, 3, 1)
         x = x.reshape(x.size(0), -1, x.size(3))
 
-        x = x + self.pos_embed[:,1:,:]
+        if self.has_clstoken:
+            x = x + self.pos_embed[:,1:,:]
+        else :
+            x = x + self.pos_embed
 
         x, mask, id_restore = self.random_masking(x, 0.75)
 
-        cls_token  = self.cls_token + self.pos_embed[:,:1,:]
-        cls_token = cls_token.expand(x.shape[0],-1,-1)
-        x = torch.cat((cls_token , x) , dim=1)
+        if self.has_clstoken:
+            cls_token  = self.cls_token + self.pos_embed[:,:1,:]
+            cls_token = cls_token.expand(x.shape[0],-1,-1)
+            x = torch.cat((cls_token , x) , dim=1)
 
         x = self.sa1(x)
         x = self.sa2(x)
@@ -179,7 +190,7 @@ class MLP(nn.Module):
 
 
 class myDecoder(nn.Module):
-    def __init__(self, attentionBlockNum=8, embed_dim=64,width = 224):
+    def __init__(self, attentionBlockNum=8, embed_dim=128,width = 224):
         super().__init__()
         self.decoder_blocks = nn.ModuleList(
             [SelfAttention(n_feats=embed_dim) for i in range(attentionBlockNum)]
@@ -238,8 +249,8 @@ class myDecoder(nn.Module):
     def forward(self, x, ids_restore, mask):
         # mask : [b , l]  1 denote mask , 0 denote left
         # 现在变成了[b,l,c]
+        x = x[:,1:,:] #直接删掉cls token 吧， 因为这个decoder 是一个重建任务，不管怎么说都不会用到cls token的
         restoreImage = self.unshuffle(x, ids_restore)
-        restoreImage = restoreImage[:,1:,:]  #在之后的预测工作中都不会用到clstoken 了，并且因为多了一个cls token 导致分patch非常地难受，所以提前就把它去掉了
         b, l, c = restoreImage.shape
         # restore 之后依然是blc
         if self.intepolate:
@@ -319,15 +330,14 @@ class myDecoder(nn.Module):
         # ids呢？[B , L]
         # 我才masktokens现在变成了b , L-Lm , dim
         mask_tokens = self.mask_token.repeat(
-            x.shape[0], ids_restore.shape[1] - x.shape[1] + 1, 1
+            x.shape[0], ids_restore.shape[1] - x.shape[1], 1
         )
         # 然后现在x_变成了L
-        x_ = torch.cat([x[:,1:,:], mask_tokens], dim=1)  # no cls token
+        x_ = torch.cat([x, mask_tokens], dim=1)  
         x_ = torch.gather(
             x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2])
         )  # unshuffle
-        x = torch.cat([x[:, :1, :], x_], dim=1)  # append cls token
-        return x
+        return x_
     
 
     def unpatchify(self, x):

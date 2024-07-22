@@ -51,7 +51,7 @@ base_lr : 1.00e-03
 
 
 #resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/finetune-debug-epoch2.pth
-finetune : /home/zengshimao/code/Super-Resolution-Neural-Operator/result/patchAttention-epoch40.pth
+finetune : /home/zengshimao/code/Super-Resolution-Neural-Operator/result/to128,15epoch,loss0.3/epoch-last.pth
 epoch_val: 1
 epoch_save: 1
 

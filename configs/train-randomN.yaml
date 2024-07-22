@@ -2,7 +2,7 @@ train_dataset:
   dataset:
     name: image-folder
     args:
-      root_path: ./data/test
+      root_path: ./data/validation
       repeat: 1
       # first_k : 5000
       
@@ -20,7 +20,7 @@ train_dataset:
         reprob : 0
         remode : pixel
         recount : 1
-  batch_size: 32
+  batch_size: 24
   num_workers: 16
 
 val_dataset:
@@ -65,16 +65,16 @@ optimizer:
   args:
     lr: 1.00e-03 
     #weight_decay: 1.e-5
-epoch_max: 30
+epoch_max: 15
 warmup_step_lr:
   multiplier: 1
-  total_epoch: 5
+  total_epoch: 3
 #multi_step_lr:
 #  milestones: [200, 400, 600, 800, 1000]
 #  gamma: 0.5
 
 base_lr : 1.00e-03
 # resume: /home/zengshimao/code/Super-Resolution-Neural-Operator/result/_train-randomN/epoch-last.pth
-epoch_val: 10
+epoch_val: 5
 epoch_save: 10
 

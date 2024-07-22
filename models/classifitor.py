@@ -18,9 +18,9 @@ from functools import partial
 
 @register("random_N_Classifitor")
 class Classifier(nn.Module):
-    def __init__(self, encoder_spec, width=256, blocks=16 , num_classes = 1000 , has_cls_token = False) -> None:
+    def __init__(self, encoder_spec, width=256, blocks=16 , num_classes = 1000 ,  embed_dim = 128 , has_cls_token = False) -> None:
         super().__init__()
-        hidden_dim = 64
+        hidden_dim = embed_dim
         self.width = width
         self.encoder = models.make(encoder_spec)
         self.sa1 = SelfAttention(n_feats=hidden_dim)
